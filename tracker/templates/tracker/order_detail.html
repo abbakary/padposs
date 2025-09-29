@@ -185,7 +185,7 @@
         </div>
       </div>
 
-      {% if order.status != 'completed' and order.status != 'cancelled' %}
+      {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
 
       <!-- Complete Order (hidden by default) -->
       <div class="card shadow-sm mb-4 d-none" id="completeFormCard">
