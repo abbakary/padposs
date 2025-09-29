@@ -583,6 +583,178 @@
     }
   }
   function fmt(dt){ if(!dt) return '-'; try{ return new Date(dt).toLocaleString(); }catch(e){ return '-'; } }
+  function parseTimestamp(value){
+    if(!value) return null;
+    const dt = new Date(value);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  function formatMinutes(value){
+    if(value === null || value === undefined || Number.isNaN(value)) return '0m';
+    const total = Math.max(0, Math.round(value));
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    if(hours && minutes){ return `${hours}h ${minutes}m`; }
+    if(hours){ return `${hours}h`; }
+    return `${minutes}m`;
+  }
+  function describeStatus(status){
+    switch(status){
+      case 'completed': return 'Completed';
+      case 'cancelled': return 'Cancelled';
+      case 'in_progress': return 'In progress';
+      case 'overdue': return 'Overdue';
+      case 'created': return 'Created';
+      default: return status ? status.replace(/_/g, ' ') : '';
+    }
+  }
+  const timeState = {
+    status: '{{ order.status }}',
+    estimatedMinutes: {{ order.estimated_duration|default_if_none:"null" }},
+    actualMinutes: {{ order.actual_duration|default_if_none:"null" }},
+    createdAt: parseTimestamp('{{ order.created_at|date:"c" }}'),
+    startedAt: parseTimestamp('{{ order.started_at|date:"c" }}'),
+    completedAt: parseTimestamp('{{ order.completed_at|date:"c" }}'),
+    cancelledAt: parseTimestamp('{{ order.cancelled_at|date:"c" }}')
+  };
+  const timeEls = {
+    estimate: document.getElementById('timeEstimateValue'),
+    elapsed: document.getElementById('timeElapsedValue'),
+    actual: document.getElementById('timeActualValue'),
+    remaining: document.getElementById('timeRemainingValue'),
+    startLabel: document.getElementById('timeStartLabel'),
+    statusMessage: document.getElementById('timeStatusMessage'),
+    progressBar: document.getElementById('orderTimeProgressBar')
+  };
+  function progressBarClassFor(status, exceeded){
+    if(exceeded && status !== 'completed' && status !== 'cancelled') return 'bg-danger';
+    switch(status){
+      case 'completed': return 'bg-success';
+      case 'cancelled': return 'bg-secondary';
+      case 'overdue': return 'bg-danger';
+      case 'in_progress': return 'bg-warning';
+      default: return 'bg-primary';
+    }
+  }
+  function applyProgressClass(newClass){
+    if(!timeEls.progressBar) return;
+    timeEls.progressBar.classList.remove('bg-primary','bg-success','bg-warning','bg-secondary','bg-danger','time-progress-over');
+    timeEls.progressBar.classList.add(newClass);
+  }
+  function updateTimeTrackingDisplay(){
+    if(!timeEls.progressBar) return;
+    const now = new Date();
+    const start = timeState.startedAt || timeState.createdAt;
+    if(!start){
+      timeEls.progressBar.style.width = '0%';
+      timeEls.progressBar.setAttribute('aria-valuenow','0');
+      if(timeEls.elapsed) timeEls.elapsed.textContent = '--';
+      if(timeEls.remaining) timeEls.remaining.textContent = 'Remaining: --';
+      if(timeEls.statusMessage) timeEls.statusMessage.textContent = 'Timing will begin when this order starts.';
+      return;
+    }
+    const closingTime = (timeState.status === 'completed' && timeState.completedAt) ? timeState.completedAt :
+                        (timeState.status === 'cancelled' && timeState.cancelledAt) ? timeState.cancelledAt :
+                        now;
+    let elapsed = (closingTime.getTime() - start.getTime()) / 60000;
+    if(elapsed < 0){ elapsed = 0; }
+    const roundedElapsed = Math.round(elapsed);
+    if(timeEls.elapsed) timeEls.elapsed.textContent = formatMinutes(elapsed);
+    if(timeEls.startLabel){
+      const prefix = timeState.startedAt ? 'Started' : 'Created';
+      timeEls.startLabel.textContent = `${prefix} ${start.toLocaleString()}`;
+    }
+    let exceeded = false;
+    if(timeState.estimatedMinutes && timeState.estimatedMinutes > 0){
+      const ratio = (elapsed / timeState.estimatedMinutes) * 100;
+      exceeded = ratio > 100;
+      const percent = Math.min(100, Math.round(ratio));
+      timeEls.progressBar.style.width = `${percent}%`;
+      timeEls.progressBar.setAttribute('aria-valuenow', String(Math.round(ratio)));
+      if(timeEls.remaining){
+        if(exceeded && timeState.status !== 'completed' && timeState.status !== 'cancelled'){
+          const overrun = Math.max(0, Math.round(elapsed - timeState.estimatedMinutes));
+          timeEls.remaining.textContent = `Exceeded by ${formatMinutes(overrun)}`;
+        } else {
+          const remaining = Math.max(0, Math.round(timeState.estimatedMinutes - elapsed));
+          timeEls.remaining.textContent = `Remaining: ${formatMinutes(remaining)}`;
+        }
+      }
+      if(timeEls.estimate){
+        timeEls.estimate.textContent = `${formatMinutes(timeState.estimatedMinutes)} est.`;
+      }
+      if(exceeded && timeState.status !== 'completed' && timeState.status !== 'cancelled'){
+        timeEls.progressBar.classList.add('time-progress-over');
+      } else {
+        timeEls.progressBar.classList.remove('time-progress-over');
+      }
+      applyProgressClass(progressBarClassFor(timeState.status, exceeded));
+    } else {
+      timeEls.progressBar.style.width = '0%';
+      timeEls.progressBar.setAttribute('aria-valuenow','0');
+      if(timeEls.estimate) timeEls.estimate.textContent = 'No estimate';
+      if(timeEls.remaining) timeEls.remaining.textContent = 'Remaining: --';
+      applyProgressClass(progressBarClassFor(timeState.status, false));
+    }
+    if(timeEls.actual){
+      if(timeState.status === 'completed' || timeState.status === 'cancelled'){
+        const actualMinutes = timeState.actualMinutes != null ? timeState.actualMinutes : roundedElapsed;
+        timeEls.actual.textContent = `${formatMinutes(actualMinutes)} actual`;
+      } else {
+        timeEls.actual.textContent = 'Pending';
+      }
+    }
+    if(timeEls.statusMessage){
+      let message = `${describeStatus(timeState.status)}.`;
+      if(timeState.status === 'completed' && timeState.completedAt){
+        message = `Completed on ${timeState.completedAt.toLocaleString()}.`;
+      } else if(timeState.status === 'cancelled' && timeState.cancelledAt){
+        message = `Cancelled on ${timeState.cancelledAt.toLocaleString()}.`;
+      } else if(exceeded){
+        message = 'This order is taking longer than estimated.';
+      } else if(timeState.status === 'in_progress'){
+        message = 'Order is actively in progress.';
+      } else if(timeState.status === 'created'){
+        message = 'Order is created and awaiting processing.';
+      }
+      timeEls.statusMessage.textContent = message;
+    }
+  }
+  function syncTimeState(payload){
+    if(!payload) return;
+    if(Object.prototype.hasOwnProperty.call(payload, 'status')){
+      timeState.status = payload.status || timeState.status;
+    }
+    if(Object.prototype.hasOwnProperty.call(payload, 'estimated_duration')){
+      if(payload.estimated_duration === null || payload.estimated_duration === undefined){
+        timeState.estimatedMinutes = null;
+      } else {
+        const estimate = Number(payload.estimated_duration);
+        timeState.estimatedMinutes = Number.isNaN(estimate) ? timeState.estimatedMinutes : estimate;
+      }
+    }
+    if(Object.prototype.hasOwnProperty.call(payload, 'actual_duration')){
+      if(payload.actual_duration === null || payload.actual_duration === undefined){
+        timeState.actualMinutes = null;
+      } else {
+        const actualVal = Number(payload.actual_duration);
+        timeState.actualMinutes = Number.isNaN(actualVal) ? timeState.actualMinutes : actualVal;
+      }
+    }
+    if(Object.prototype.hasOwnProperty.call(payload, 'created_at')){
+      const createdAt = parseTimestamp(payload.created_at);
+      if(createdAt) timeState.createdAt = createdAt;
+    }
+    if(Object.prototype.hasOwnProperty.call(payload, 'started_at')){
+      timeState.startedAt = parseTimestamp(payload.started_at);
+    }
+    if(Object.prototype.hasOwnProperty.call(payload, 'completed_at')){
+      timeState.completedAt = parseTimestamp(payload.completed_at);
+    }
+    if(Object.prototype.hasOwnProperty.call(payload, 'cancelled_at')){
+      timeState.cancelledAt = parseTimestamp(payload.cancelled_at);
+    }
+  }
+  updateTimeTrackingDisplay();
   const id = {{ order.id }};
   function refresh(){
     fetch(`/api/orders/${id}/status/`)
