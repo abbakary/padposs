@@ -760,6 +760,8 @@
     fetch(`/api/orders/${id}/status/`)
       .then(r=>r.json()).then(j=>{
         if(!j.success) return;
+        syncTimeState(j);
+        updateTimeTrackingDisplay();
         const completeCard = document.getElementById('completeFormCard');
         const cancelCard = document.getElementById('cancelFormCard');
         const sc = document.getElementById('showCompleteBtn');
