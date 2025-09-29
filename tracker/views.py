@@ -108,6 +108,8 @@ def api_order_status(request: HttpRequest, pk: int):
             'id': o.id,
             'status': o.status,
             'status_display': o.get_status_display(),
+            'estimated_duration': o.estimated_duration,
+            'actual_duration': o.actual_duration,
             'created_at': o.created_at,
             'started_at': o.started_at,
             'completed_at': o.completed_at,
