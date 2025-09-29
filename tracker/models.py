@@ -181,21 +181,32 @@ class Order(models.Model):
     cancellation_reason = models.TextField(blank=True, null=True)
 
     def auto_progress_if_elapsed(self) -> bool:
-        """Automatically move from created to in_progress after 10 minutes.
+        """Auto-progress timing rules.
+        - All types: created -> in_progress after 10 minutes
+        - Inquiry: in_progress -> completed after additional 10 minutes
         Returns True if a change was made."""
         try:
+            now = timezone.now()
+            changed = False
             if self.status == 'created' and self.created_at:
-                time_elapsed = timezone.now() - self.created_at
-                if time_elapsed >= timedelta(minutes=10):
+                if (now - self.created_at) >= timedelta(minutes=10):
                     self.status = 'in_progress'
                     if not self.started_at:
-                        self.started_at = timezone.now()
+                        self.started_at = now
                     self.save(update_fields=['status', 'started_at'])
-                    return True
+                    changed = True
+            # Additional rule for inquiry orders
+            if self.type == 'inquiry' and self.status == 'in_progress' and self.started_at:
+                if (now - self.started_at) >= timedelta(minutes=10):
+                    self.status = 'completed'
+                    self.completed_at = now
+                    self.actual_duration = int(((now - (self.started_at or self.created_at)).total_seconds()) // 60)
+                    self.save(update_fields=['status', 'completed_at', 'actual_duration'])
+                    changed = True
+            return changed
         except Exception as e:
-            # Log the error for debugging
             print(f"Error in auto_progress_if_elapsed: {e}")
-        return False
+            return False
 
     def save(self, *args, **kwargs):
         creating = self._state.adding
