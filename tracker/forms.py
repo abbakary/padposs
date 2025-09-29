@@ -611,15 +611,27 @@ class OrderForm(forms.ModelForm):
             cleaned["tire_type"] = "New"
 
         elif t == "service":
-            if not cleaned.get("description"):
-                self.add_error("description", "Problem description required for Service orders")
-            if not cleaned.get("estimated_duration"):
-                self.add_error("estimated_duration", "Estimated duration required for Service orders")
+            # Provide sensible defaults to avoid failing submission when user selects Service
+            dur = cleaned.get("estimated_duration")
+            try:
+                dur = int(dur) if dur is not None and str(dur) != '' else None
+            except (TypeError, ValueError):
+                dur = None
+            if not dur or dur <= 0:
+                cleaned["estimated_duration"] = 50
             services = cleaned.get("service_selection") or []
+            desc = (cleaned.get("description") or "").strip()
             if services:
-                desc = cleaned.get("description") or ""
-                desc_services = "\nSelected services: " + ", ".join(dict(self.SERVICE_OPTIONS)[s] for s in services)
-                cleaned["description"] = (desc + desc_services).strip()
+                label_map = dict(self.SERVICE_OPTIONS)
+                try:
+                    selected_labels = [label_map.get(s, s) for s in services]
+                    desc_services = "Selected services: " + ", ".join(selected_labels)
+                except Exception:
+                    desc_services = "Selected services provided"
+                desc = (desc + ("\n" if desc else "") + desc_services).strip()
+            if not desc:
+                desc = "Service order"
+            cleaned["description"] = desc
             # Always set tire_type to New (hidden field)
             cleaned["tire_type"] = "New"
 
