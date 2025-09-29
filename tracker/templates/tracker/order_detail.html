@@ -781,8 +781,9 @@
         }
       });
   }
+  setInterval(()=>{ if(!document.hidden) updateTimeTrackingDisplay(); }, 1000);
   setInterval(refresh, 12000);
-  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refresh(); });
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ refresh(); updateTimeTrackingDisplay(); } });
   refresh();
 
   // Toggle forms
