@@ -111,6 +111,26 @@
           <h6 class="mb-0"><i class="fa fa-paperclip me-2"></i>Attachments & Signatures</h6>
         </div>
         <div class="card-body">
+          {% if order.signature_file and order.completion_attachment %}
+          <div class="mb-3">
+            <div class="border rounded overflow-hidden">
+              <div class="position-relative" style="height:360px;">
+                {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
+                  {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
+                    <img src="{{ url }}" alt="Signed Document" class="position-absolute top-0 start-0 w-100 h-100" style="object-fit:contain;">
+                  {% elif fname and '.pdf' in fname %}
+                    <div class="ratio ratio-4x3 w-100 h-100 position-absolute top-0 start-0">
+                      <iframe src="{{ url }}" title="PDF preview" style="border:0;border-radius:0;"></iframe>
+                    </div>
+                  {% else %}
+                    <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">Preview not available</div>
+                  {% endif %}
+                {% endwith %}
+                <img src="{{ order.signature_file.url }}" alt="Signature Overlay" class="position-absolute" style="right:12px; bottom:12px; max-width:35%; opacity:.95;">
+              </div>
+            </div>
+          </div>
+          {% endif %}
           <div class="row g-3">
             {% if order.signature_file %}
             <div class="col-md-6">
