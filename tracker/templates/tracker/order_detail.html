@@ -302,7 +302,7 @@
             <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success">
               <i class="fa fa-edit me-2"></i>Edit Order
             </a>
-            {% if order.status != 'completed' and order.status != 'cancelled' %}
+            {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
             <button id="showCompleteBtn" type="button" class="btn btn-success"><i class="fa fa-check me-2"></i>Complete Order</button>
             <button id="showCancelBtn" type="button" class="btn btn-outline-danger"><i class="fa fa-times me-2"></i>Cancel Order</button>
             {% endif %}
