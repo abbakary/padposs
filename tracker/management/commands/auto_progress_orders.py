@@ -6,7 +6,7 @@ from tracker.models import Order
 
 
 class Command(BaseCommand):
-    help = "Auto-progress orders from 'created' to 'in_progress' after 10 minutes."
+    help = "Auto-progress orders: created->in_progress after 10 minutes; complete inquiry orders 10 minutes after start."
 
     def add_arguments(self, parser):
         parser.add_argument(
