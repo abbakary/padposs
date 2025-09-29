@@ -2383,7 +2383,22 @@ def complete_order(request: HttpRequest, pk: int):
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
 
-    # Gather inputs
+    # Inquiry orders require no uploads/signature; auto-complete if requested
+    if o.type == 'inquiry':
+        now = timezone.now()
+        if not o.started_at:
+            o.started_at = now
+            o.status = 'in_progress'
+        o.status = 'completed'
+        o.completed_at = now
+        o.actual_duration = int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
+        o.signed_by = request.user
+        o.signed_at = now
+        o.save(update_fields=['status','started_at','completed_at','actual_duration','signed_by','signed_at'])
+        messages.success(request, 'Inquiry marked as completed.')
+        return redirect('tracker:order_detail', pk=o.id)
+
+    # Gather inputs (non-inquiry)
     sig = request.FILES.get('signature_file')
     sig_data = request.POST.get('signature_data') or ''
     att = request.FILES.get('completion_attachment')
