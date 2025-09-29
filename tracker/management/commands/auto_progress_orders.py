@@ -70,3 +70,31 @@ class Command(BaseCommand):
         if dry_run:
             msg = "[DRY RUN] " + msg
         self.stdout.write(self.style.SUCCESS(msg))
+
+        # Now also handle inquiry orders that have been in progress for at least <minutes>
+        qs2 = (
+            Order.objects.filter(type='inquiry', status='in_progress', started_at__lte=cutoff)
+            .order_by('started_at')
+        )
+        total_inquiry = qs2.count()
+        if total_inquiry == 0:
+            self.stdout.write(self.style.SUCCESS("No inquiry orders eligible for auto-completion."))
+            return
+
+        updated2 = 0
+        ids2 = list(qs2[:limit].values_list('id', 'started_at', 'created_at'))
+        now2 = timezone.now()
+        batch_size = 100
+        for i in range(0, len(ids2), batch_size):
+            batch = ids2[i:i+batch_size]
+            id_list = [x[0] for x in batch]
+            # Compute durations individually would require loop; set completed_at=now2, duration approx using SQL not trivial, so set to minutes since started in separate updates
+            for oid, s_at, c_at in batch:
+                try:
+                    dur = int(((now2 - (s_at or c_at)).total_seconds()) // 60)
+                except Exception:
+                    dur = None
+                with transaction.atomic():
+                    rows = Order.objects.filter(id=oid, status='in_progress').update(status='completed', completed_at=now2, actual_duration=dur)
+                    updated2 += rows
+        self.stdout.write(self.style.SUCCESS(f"Auto-completed {updated2} inquiry order(s)."))
