@@ -37,9 +37,21 @@ def _mark_overdue_orders(hours=24):
         # Auto progress: created -> in_progress after 10 minutes
         created_cutoff = now - timedelta(minutes=10)
         Order.objects.filter(status="created", created_at__lte=created_cutoff).update(status="in_progress", started_at=now)
-        # Persist overdue: any non-final older than cutoff
+        # Inquiry: in_progress -> completed after 10 minutes in progress
+        inquiry_cutoff = now - timedelta(minutes=10)
+        qs = Order.objects.filter(type='inquiry', status='in_progress', started_at__lte=inquiry_cutoff)
+        for o in qs.only('id','started_at','created_at'):
+            try:
+                Order.objects.filter(id=o.id, status='in_progress').update(
+                    status='completed',
+                    completed_at=now,
+                    actual_duration=int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
+                )
+            except Exception:
+                continue
+        # Persist overdue: any non-final older than cutoff, excluding inquiry
         cutoff = now - timedelta(hours=hours)
-        Order.objects.filter(status__in=["created","in_progress"], created_at__lt=cutoff).update(status="overdue")
+        Order.objects.filter(status__in=["created","in_progress"], created_at__lt=cutoff).exclude(type='inquiry').update(status="overdue")
     except Exception:
         pass
 
@@ -2361,17 +2373,53 @@ def update_order_status(request: HttpRequest, pk: int):
 
 @login_required
 def complete_order(request: HttpRequest, pk: int):
-    """Complete an order with password confirmation and either a signature image
-    or an attachment. Computes duration and adjusts inventory for sales."""
+    """Complete an order requiring a drawn signature and a completion attachment.
+    Accepts either a file upload for signature or a base64-encoded 'signature_data' image.
+    Computes duration and adjusts inventory for sales."""
+    from django.core.files.base import ContentFile
+    import base64, time
+
     o = get_object_or_404(Order, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
 
-    # No password confirmation required; require a signature image or completion file
+    # Inquiry orders require no uploads/signature; auto-complete if requested
+    if o.type == 'inquiry':
+        now = timezone.now()
+        if not o.started_at:
+            o.started_at = now
+            o.status = 'in_progress'
+        o.status = 'completed'
+        o.completed_at = now
+        o.actual_duration = int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
+        o.signed_by = request.user
+        o.signed_at = now
+        o.save(update_fields=['status','started_at','completed_at','actual_duration','signed_by','signed_at'])
+        messages.success(request, 'Inquiry marked as completed.')
+        return redirect('tracker:order_detail', pk=o.id)
+
+    # Gather inputs (non-inquiry)
     sig = request.FILES.get('signature_file')
+    sig_data = request.POST.get('signature_data') or ''
     att = request.FILES.get('completion_attachment')
-    if not sig and not att:
-        messages.error(request, 'Please upload a signature image or a completion file to finalize the order.')
+
+    # Enforce required evidence: an attachment PLUS a signature (file or drawn)
+    if not att:
+        messages.error(request, 'Please upload a completion document or image before completing the order.')
+        return redirect('tracker:order_detail', pk=o.id)
+
+    # If signature file missing but signature_data exists, decode it into an uploaded file
+    if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
+        try:
+            header, b64 = sig_data.split(';base64,', 1)
+            ext = (header.split('/')[-1] or 'png').split(';')[0]
+            sig_bytes = base64.b64decode(b64)
+            sig = ContentFile(sig_bytes, name=f"signature_{o.id}_{int(time.time())}.{ext}")
+        except Exception:
+            sig = None
+
+    if not sig:
+        messages.error(request, 'Please draw a signature to complete the order.')
         return redirect('tracker:order_detail', pk=o.id)
 
     now = timezone.now()
@@ -2379,10 +2427,8 @@ def complete_order(request: HttpRequest, pk: int):
         o.started_at = now
         o.status = 'in_progress'
 
-    if sig:
-        o.signature_file = sig
-    if att:
-        o.completion_attachment = att
+    o.signature_file = sig
+    o.completion_attachment = att
     o.signed_by = request.user
     o.signed_at = now
 

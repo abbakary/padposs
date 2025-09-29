@@ -357,6 +357,8 @@
   function enhanceOrderCompletionForm(){
     var form = document.querySelector('form[action*="/complete/"]');
     if (!form) return;
+    // If signature drawing workflow is present, do NOT auto-submit on file change
+    if (form.querySelector('[name="signature_data"]') || form.querySelector('#signaturePad')) return;
     var pwd = form.querySelector('input[type="password"]');
     if (pwd) { pwd.closest('.form-group') ? pwd.closest('.form-group').style.display='none' : (pwd.style.display='none'); }
     function trySubmit(){
