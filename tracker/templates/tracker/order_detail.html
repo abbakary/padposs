@@ -535,7 +535,7 @@
     if(ca){ e.preventDefault(); if(showCancelBtn) showCancelBtn.click(); }
   });
 
-  // File previews
+  // File previews + signature pad
   function clear(el){ if(el) el.innerHTML=''; }
   function renderImagePreview(container, file){
     if(!container || !file) return;
@@ -563,24 +563,96 @@
     container.appendChild(wrap);
   }
 
-  const sigInput = document.getElementById('signatureInput');
-  const sigPrev = document.getElementById('signaturePreview');
   const attInput = document.getElementById('attachmentInput');
   const attPrev = document.getElementById('attachmentPreview');
+  const docHost = document.getElementById('docPreviewHost');
+  const sigCanvas = document.getElementById('signaturePad');
+  const sigDataInput = document.getElementById('signatureDataInput');
+  const clearBtn = document.getElementById('clearSignatureBtn');
+  const signBtn = document.getElementById('signAndCompleteBtn');
+  const form = document.getElementById('completeForm');
 
-  if(sigInput){
-    sigInput.addEventListener('change', function(){
-      clear(sigPrev);
-      if(this.files && this.files[0]){ renderImagePreview(sigPrev, this.files[0]); }
-    });
+  // Prevent global auto-submit on file change (capture phase)
+  if(attInput){ attInput.addEventListener('change', function(e){ e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation(); }, true); }
+
+  function fitCanvas(){
+    if(!sigCanvas) return;
+    const rect = sigCanvas.getBoundingClientRect();
+    sigCanvas.width = rect.width;
+    sigCanvas.height = rect.height;
+    const ctx = sigCanvas.getContext('2d');
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#000';
   }
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+
+  let drawing = false, hasDrawn = false, last = null;
+  function getPos(evt){
+    const rect = sigCanvas.getBoundingClientRect();
+    const e = evt.touches ? evt.touches[0] : evt;
+    return { x: (e.clientX - rect.left), y: (e.clientY - rect.top) };
+  }
+  function startDraw(e){ drawing = true; hasDrawn = true; last = getPos(e); }
+  function moveDraw(e){ if(!drawing) return; const ctx = sigCanvas.getContext('2d'); const p = getPos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; }
+  function endDraw(){ drawing = false; last = null; }
+  if(sigCanvas){
+    sigCanvas.addEventListener('mousedown', startDraw);
+    sigCanvas.addEventListener('mousemove', moveDraw);
+    window.addEventListener('mouseup', endDraw);
+    sigCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); startDraw(e); }, {passive:false});
+    sigCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); moveDraw(e); }, {passive:false});
+    sigCanvas.addEventListener('touchend', function(e){ e.preventDefault(); endDraw(); }, {passive:false});
+  }
+
+  function resetSignature(){ if(!sigCanvas) return; const ctx = sigCanvas.getContext('2d'); ctx.clearRect(0,0,sigCanvas.width,sigCanvas.height); hasDrawn = false; }
+  if(clearBtn){ clearBtn.addEventListener('click', resetSignature); }
+
+  function setDocPreview(file){
+    if(!docHost) return;
+    docHost.innerHTML = '';
+    if(!file){ docHost.textContent = 'No file selected'; return; }
+    const url = URL.createObjectURL(file);
+    if((file.type||'').startsWith('image/')){
+      const img = document.createElement('img');
+      img.src = url; img.alt = 'Document'; img.className = 'w-100 h-100 position-absolute top-0 start-0';
+      img.style.objectFit = 'contain';
+      docHost.appendChild(img);
+    } else if((file.name||'').toLowerCase().endsWith('.pdf')){
+      const iframe = document.createElement('iframe');
+      iframe.src = url; iframe.title='PDF preview'; iframe.style.border='0'; iframe.className='w-100 h-100 position-absolute top-0 start-0';
+      docHost.appendChild(iframe);
+    } else {
+      const div = document.createElement('div');
+      div.className = 'text-muted';
+      div.textContent = 'Preview not available';
+      docHost.appendChild(div);
+    }
+    resetSignature();
+  }
+
   if(attInput){
     attInput.addEventListener('change', function(){
       clear(attPrev);
-      if(!(this.files && this.files[0])) return;
+      if(!(this.files && this.files[0])){ setDocPreview(null); return; }
       const f = this.files[0];
       if((f.type||'').startsWith('image/')){ renderImagePreview(attPrev, f); }
       else { renderFilePreview(attPrev, f); }
+      setDocPreview(f);
+      fitCanvas();
+    });
+  }
+
+  if(signBtn){
+    signBtn.addEventListener('click', function(){
+      if(!(attInput && attInput.files && attInput.files[0])){ alert('Please upload a document or image first.'); return; }
+      if(!hasDrawn){ alert('Please draw a signature.'); return; }
+      try{
+        const dataUrl = sigCanvas.toDataURL('image/png');
+        if(sigDataInput){ sigDataInput.value = dataUrl; }
+        form.requestSubmit ? form.requestSubmit() : form.submit();
+      }catch(err){ console.error(err); alert('Could not capture signature, please try again.'); }
     });
   }
 })();
