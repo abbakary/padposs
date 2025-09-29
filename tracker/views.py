@@ -2361,17 +2361,38 @@ def update_order_status(request: HttpRequest, pk: int):
 
 @login_required
 def complete_order(request: HttpRequest, pk: int):
-    """Complete an order with password confirmation and either a signature image
-    or an attachment. Computes duration and adjusts inventory for sales."""
+    """Complete an order requiring a drawn signature and a completion attachment.
+    Accepts either a file upload for signature or a base64-encoded 'signature_data' image.
+    Computes duration and adjusts inventory for sales."""
+    from django.core.files.base import ContentFile
+    import base64, time
+
     o = get_object_or_404(Order, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
 
-    # No password confirmation required; require a signature image or completion file
+    # Gather inputs
     sig = request.FILES.get('signature_file')
+    sig_data = request.POST.get('signature_data') or ''
     att = request.FILES.get('completion_attachment')
-    if not sig and not att:
-        messages.error(request, 'Please upload a signature image or a completion file to finalize the order.')
+
+    # Enforce required evidence: an attachment PLUS a signature (file or drawn)
+    if not att:
+        messages.error(request, 'Please upload a completion document or image before completing the order.')
+        return redirect('tracker:order_detail', pk=o.id)
+
+    # If signature file missing but signature_data exists, decode it into an uploaded file
+    if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
+        try:
+            header, b64 = sig_data.split(';base64,', 1)
+            ext = (header.split('/')[-1] or 'png').split(';')[0]
+            sig_bytes = base64.b64decode(b64)
+            sig = ContentFile(sig_bytes, name=f"signature_{o.id}_{int(time.time())}.{ext}")
+        except Exception:
+            sig = None
+
+    if not sig:
+        messages.error(request, 'Please draw a signature to complete the order.')
         return redirect('tracker:order_detail', pk=o.id)
 
     now = timezone.now()
@@ -2379,10 +2400,8 @@ def complete_order(request: HttpRequest, pk: int):
         o.started_at = now
         o.status = 'in_progress'
 
-    if sig:
-        o.signature_file = sig
-    if att:
-        o.completion_attachment = att
+    o.signature_file = sig
+    o.completion_attachment = att
     o.signed_by = request.user
     o.signed_at = now
 
