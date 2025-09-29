@@ -169,9 +169,9 @@
               </td>
               <td class="text-muted small">{{ o.created_at|localtime|date_medium }}</td>
               <td class="text-end">
-                <div class="dropdown">
-                  <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <i class="fa fa-cog me-1"></i>Actions
+                <div class="dropdown actions-dropdown">
+                  <button class="btn btn-sm btn-outline-secondary actions-toggle" type="button" data-bs-toggle="dropdown" aria-label="More actions">
+                    <i class="fa fa-ellipsis-v"></i>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" href="{% url 'tracker:order_detail' pk=o.id %}"><i class="fa fa-eye me-2 text-primary"></i>View Details</a></li>
@@ -261,37 +261,76 @@
   </div>
 
 <style>
+/* Dropdown Menu Styles */
 .dropdown-menu {
-  background-color: #f8f9fa;
+  background-color: #e9ecef; /* Light gray (not white or transparent) */
   border: 1px solid #dee2e6;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
+
+/* Default Dropdown Item */
 .dropdown-item {
   color: #212529;
-  background-color: transparent;
+  background-color: #f0f0f0; /* Light gray background for visibility */
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  margin: 0.25rem 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* Hover & Focus Effects */
 .dropdown-item:hover,
 .dropdown-item:focus {
   color: #ffffff;
   background-color: #0d6efd;
+  text-decoration: none;
 }
-.dropdown-item.text-success:hover {
+
+/* Success Variant */
+.dropdown-item.text-success {
+  color: #198754;
+  background-color: #e0f5e9;
+}
+.dropdown-item.text-success:hover,
+.dropdown-item.text-success:focus {
   background-color: #198754;
   color: #ffffff;
 }
-.dropdown-item.text-warning:hover {
+
+/* Warning Variant */
+.dropdown-item.text-warning {
+  color: #fd7e14;
+  background-color: #fff4e5;
+}
+.dropdown-item.text-warning:hover,
+.dropdown-item.text-warning:focus {
   background-color: #fd7e14;
   color: #ffffff;
 }
-.dropdown-item.text-danger:hover {
+
+/* Danger Variant */
+.dropdown-item.text-danger {
+  color: #dc3545;
+  background-color: #fdecea;
+}
+.dropdown-item.text-danger:hover,
+.dropdown-item.text-danger:focus {
   background-color: #dc3545;
   color: #ffffff;
 }
-.dropdown-item.text-primary:hover {
+
+/* Primary Variant */
+.dropdown-item.text-primary {
+  color: #0d6efd;
+  background-color: #e7f1ff;
+}
+.dropdown-item.text-primary:hover,
+.dropdown-item.text-primary:focus {
   background-color: #0d6efd;
   color: #ffffff;
 }
 </style>
+
 {% endblock %} {# <-- Missing endblock was here #}
 
 {% block extra_js %}

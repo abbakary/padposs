@@ -1,9 +1,11 @@
-# TODO: Update order_detail.html to make it more attractive and organized
+# TODO: Improve Edit Vehicle and Customer Edit Pages
 
 ## Tasks
-- [ ] Add status progress bar at the top of the page
-- [ ] Enhance Overview section: add icons to fields, improve grid layout
-- [ ] Improve Files & Sign-off section: better display of signatures and attachments
-- [ ] Organize Actions sidebar: add quick stats, group buttons
-- [ ] Apply visual polish: spacing, colors, shadows, responsiveness
-- [ ] Add summary header with key metrics and tooltips
+- [x] Update customer_edit.html to use full width (col-12) and improve layout organization
+- [x] Update vehicle_form.html to use full width (col-12) and better field spacing
+- [ ] Test the updated layouts for responsiveness and full space utilization
+
+## Completed
+- [x] Analyze current templates and identify issues
+- [x] Create improvement plan
+- [x] Get user approval for plan

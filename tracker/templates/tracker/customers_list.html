@@ -216,9 +216,9 @@
               </td>
               {% endif %}
               <td class="text-end">
-                <div class="dropdown">
-                  <button class="btn btn-sm btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                    <i class="fa fa-cog me-1"></i>Actions
+                <div class="dropdown actions-dropdown">
+                  <button class="btn btn-sm btn-outline-secondary actions-toggle" type="button" data-bs-toggle="dropdown" aria-label="More actions">
+                    <i class="fa fa-ellipsis-v"></i>
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end">
                     <li><a class="dropdown-item" href="{% url 'tracker:customer_detail' pk=c.id %}"><i class="fa fa-eye me-2 text-primary"></i>View Details</a></li>
@@ -370,7 +370,7 @@
 
 <style>
 .dropdown-menu {
-  background-color: #f8f9fa;
+  background-color:dark;
   border: 1px solid #dee2e6;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
