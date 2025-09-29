@@ -436,6 +436,60 @@
 </div>
 
 <style>
+.time-tracking-card .time-tracking-overview {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.time-tracking-card .time-tracking-stat {
+  flex: 1 1 150px;
+  background-color: #f8f9fa;
+  border-radius: .5rem;
+  padding: .75rem 1rem;
+}
+
+.time-tracking-card .time-tracking-label {
+  display: block;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6c757d;
+  margin-bottom: .25rem;
+}
+
+.time-tracking-card .time-tracking-value {
+  font-weight: 600;
+  color: #212529;
+  font-size: 1rem;
+}
+
+.time-tracking-card .time-progress-bar {
+  height: 10px;
+  background-color: #e9ecef;
+  border-radius: .5rem;
+  overflow: hidden;
+  margin-top: 1.25rem;
+}
+
+.time-tracking-card .progress-bar {
+  transition: width .6s ease;
+}
+
+.time-progress-status {
+  color: #495057;
+}
+
+.time-progress-over {
+  background-color: #dc3545 !important;
+}
+
+@media (max-width: 767.98px) {
+  .time-tracking-card .time-tracking-stat {
+    flex: 1 1 100%;
+  }
+}
+
 .timeline {
   position: relative;
   padding-left: 30px;
