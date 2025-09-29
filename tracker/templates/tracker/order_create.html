@@ -162,16 +162,12 @@
         var brandEl = document.getElementById('id_brand');
         if (!itemEl || !brandEl) return;
         var mapping = {};
-        try { mapping = JSON.parse(itemEl.getAttribute('data-brands') || '{}'); } catch(e) { mapping = {}; }
+        try { mapping = JSON.parse(itemEl.getAttribute('data-items') || '{}'); } catch(e) { mapping = {}; }
         itemEl.addEventListener('change', function(){
-          var bn = mapping[this.value];
-          if (!bn) return;
-          for (var i = 0; i < brandEl.options.length; i++) {
-            if (brandEl.options[i].text === bn || brandEl.options[i].value === bn) {
-              brandEl.selectedIndex = i;
-              break;
-            }
-          }
+          var meta = mapping[this.value];
+          if (!meta) return;
+          // brand input is hidden text input; set value directly
+          brandEl.value = meta.brand || '';
         });
       })();
 
