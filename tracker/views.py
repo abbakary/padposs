@@ -34,6 +34,9 @@ from django.views.generic import View
 def _mark_overdue_orders(hours=24):
     try:
         now = timezone.now()
+        # Ensure inquiries are treated as completed (retroactively normalize existing data)
+        Order.objects.filter(type='inquiry').exclude(status='completed').update(status='completed', completed_at=now, completion_date=now)
+
         # Auto progress: created -> in_progress after 10 minutes (exclude inquiries)
         created_cutoff = now - timedelta(minutes=10)
         Order.objects.filter(status="created", created_at__lte=created_cutoff).exclude(type='inquiry').update(status="in_progress", started_at=now)
