@@ -55,7 +55,8 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'assets/css/custom.css' %}">
-    
+    <link rel="stylesheet" href="{% static 'assets/css/tz-phone.css' %}">
+
     <!-- Timezone Detection -->
     <script>
         if (!document.cookie.split('; ').find(row => row.startsWith('django_timezone'))) {
@@ -488,7 +489,8 @@
     <script src="{% static 'assets/js/slick/slick.js' %}"></script>
     <script src="{% static 'assets/js/header-slick.js' %}"></script>
     <script src="{% static 'assets/js/script.js' %}"></script>
-    
+    <script src="{% static 'js/phone_validation.js' %}"></script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>
