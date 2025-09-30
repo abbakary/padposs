@@ -34,21 +34,10 @@ from django.views.generic import View
 def _mark_overdue_orders(hours=24):
     try:
         now = timezone.now()
-        # Auto progress: created -> in_progress after 10 minutes
+        # Auto progress: created -> in_progress after 10 minutes (exclude inquiries)
         created_cutoff = now - timedelta(minutes=10)
-        Order.objects.filter(status="created", created_at__lte=created_cutoff).update(status="in_progress", started_at=now)
-        # Inquiry: in_progress -> completed after 10 minutes in progress
-        inquiry_cutoff = now - timedelta(minutes=10)
-        qs = Order.objects.filter(type='inquiry', status='in_progress', started_at__lte=inquiry_cutoff)
-        for o in qs.only('id','started_at','created_at'):
-            try:
-                Order.objects.filter(id=o.id, status='in_progress').update(
-                    status='completed',
-                    completed_at=now,
-                    actual_duration=int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
-                )
-            except Exception:
-                continue
+        Order.objects.filter(status="created", created_at__lte=created_cutoff).exclude(type='inquiry').update(status="in_progress", started_at=now)
+
         # Persist overdue: any non-final older than cutoff, excluding inquiry
         cutoff = now - timedelta(hours=hours)
         Order.objects.filter(status__in=["created","in_progress"], created_at__lt=cutoff).exclude(type='inquiry').update(status="overdue")
