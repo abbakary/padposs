@@ -563,6 +563,29 @@
               {% endif %}
             </div>
           </div>
+
+          {# Summary extra lines: show vehicle, short description and key fields depending on type #}
+          <hr>
+          <div class="mb-2 small text-muted">Summary</div>
+          {% if order.vehicle %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Vehicle</div>
+            <div class="fw-medium text-end">{{ order.vehicle.plate_number }}</div>
+          </div>
+          {% endif %}
+          {% if order.type == 'sales' and order.item_name %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Item</div>
+            <div class="fw-medium text-end">{{ order.item_name }}{% if order.brand %} • {{ order.brand }}{% endif %}</div>
+          </div>
+          {% endif %}
+          {% if order.description %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Description</div>
+            <div class="text-end" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ order.description }}</div>
+          </div>
+          {% endif %}
+
         </div>
       </div>
       <!-- Quick Actions -->
