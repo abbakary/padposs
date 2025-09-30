@@ -19,6 +19,7 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ("order_number", "customer__full_name")
     list_filter = ("type", "status", "priority", "signed_by", "completed_at", "cancelled_at", "branch")
     readonly_fields = ("order_number", "created_at", "started_at", "completed_at", "cancelled_at", "signed_at")
+    autocomplete_fields = ('branch',)
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = (
