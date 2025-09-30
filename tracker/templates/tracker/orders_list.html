@@ -175,9 +175,11 @@
                     <li><a class="dropdown-item" href="{% url 'tracker:order_detail' pk=o.id %}"><i class="fa fa-eye me-2 text-primary"></i>View Details</a></li>
                     <li><a class="dropdown-item" href="{% url 'tracker:order_edit' pk=o.id %}"><i class="fa fa-edit me-2 text-success"></i>Edit Order</a></li>
                     <li><hr class="dropdown-divider"></li>
+                    {% if o.type != 'inquiry' %}
                     <li><a class="dropdown-item js-complete-order" href="#" data-order-id="{{ o.id }}"><i class="fa fa-check me-2 text-success"></i>Mark Completed</a></li>
                     <li><a class="dropdown-item js-cancel-order" href="#" data-order-id="{{ o.id }}"><i class="fa fa-times me-2 text-warning"></i>Cancel Order</a></li>
                     <li><hr class="dropdown-divider"></li>
+                    {% endif %}
                     <li>
                       <form method="post" action="{% url 'tracker:order_delete' pk=o.id %}" onsubmit="return confirm('Delete this order?');">
                         {% csrf_token %}
