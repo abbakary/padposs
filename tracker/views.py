@@ -2443,7 +2443,7 @@ def complete_order(request: HttpRequest, pk: int):
 
     o.save()
     try:
-        add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with signature/attachment")
+        add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with digital signature")
     except Exception:
         pass
     messages.success(request, 'Order marked as completed.')
