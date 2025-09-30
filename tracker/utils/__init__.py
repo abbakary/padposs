@@ -136,8 +136,18 @@ def scope_queryset(qs, user, request=None):
         if getattr(user, 'is_superuser', False):
             if request:
                 b_id = request.GET.get('branch')
-                if b_id and b_id.isdigit():
-                    return qs.filter(branch_id=int(b_id))
+                if b_id:
+                    b_id = b_id.strip()
+                    if b_id.isdigit():
+                        return qs.filter(branch_id=int(b_id))
+                    # Try resolving by exact name (case-insensitive)
+                    from .models import Branch as _Branch
+                    try:
+                        bobj = _Branch.objects.filter(name__iexact=b_id).first()
+                        if bobj:
+                            return qs.filter(branch_id=bobj.id)
+                    except Exception:
+                        pass
             return qs
         # Staff/regular users: restrict to their assigned branch
         b = get_user_branch(user)
