@@ -150,3 +150,14 @@ class BranchAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "region", "is_active", "created_at")
     search_fields = ("name", "code", "region")
     list_filter = ("region", "is_active")
+
+    def get_search_results(self, request, queryset, search_term):
+        """Prioritize exact (case-insensitive) name matches for admin autocomplete.
+        If the user types the full exact branch name, return that branch as the primary result.
+        Otherwise fall back to default behaviour which uses icontains.
+        """
+        if search_term:
+            exact_qs = queryset.filter(name__iexact=search_term)
+            if exact_qs.exists():
+                return exact_qs, False
+        return super().get_search_results(request, queryset, search_term)
