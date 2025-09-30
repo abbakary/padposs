@@ -2332,11 +2332,11 @@ def customer_detail(request: HttpRequest, pk: int):
     customer = get_object_or_404(Customer, pk=pk)
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
-    notes = customer.notes_history.all().order_by('-created_at')
-    
+    notes = customer.note_entries.all().order_by('-created_at')
+
     # Get timezone from cookie or use default
     tzname = request.COOKIES.get('django_timezone')
-    
+
     return render(request, "tracker/customer_detail.html", {
         'customer': customer,
         'orders': orders,
