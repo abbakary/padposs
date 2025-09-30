@@ -2402,54 +2402,90 @@ def complete_order(request: HttpRequest, pk: int):
         return redirect('tracker:order_detail', pk=o.id)
 
     # Gather inputs (non-inquiry)
-    sig = request.FILES.get('signature_file')
-    sig_data = request.POST.get('signature_data') or ''
-    att = request.FILES.get('completion_attachment')
+  sig = request.FILES.get('signature_file')
+  sig_data = request.POST.get('signature_data') or ''
+  att = request.FILES.get('completion_attachment')
 
-    # If signature file missing but signature_data exists, decode it into an uploaded file
-    if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
-        try:
-            header, b64 = sig_data.split(';base64,', 1)
-            ext = (header.split('/')[-1] or 'png').split(';')[0]
-            sig_bytes = base64.b64decode(b64)
-            sig = ContentFile(sig_bytes, name=f"signature_{o.id}_{int(time.time())}.{ext}")
-        except Exception:
-            sig = None
+  # Server-side validation rules
+  ALLOWED_ATTACHMENT_EXTS = ['.jpg','.jpeg','.png','.gif','.webp','.pdf','.doc','.docx','.xls','.xlsx','.txt']
+  ALLOWED_SIGNATURE_EXTS = ['.jpg','.jpeg','.png','.webp']
+  MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
+  MAX_SIGNATURE_BYTES = 2 * 1024 * 1024  # 2 MB
 
-    if not sig:
-        messages.error(request, 'Please draw a signature to complete the order.')
-        return redirect('tracker:order_detail', pk=o.id)
+  # Helper
+  def _ext_of_name(name):
+      try:
+          return ('.' + name.split('.')[-1].lower()) if '.' in name else ''
+      except Exception:
+          return ''
 
-    now = timezone.now()
-    if not o.started_at:
-        o.started_at = now
-        o.status = 'in_progress'
+  # If signature file missing but signature_data exists, decode it into an uploaded file
+  if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
+      try:
+          header, b64 = sig_data.split(';base64,', 1)
+          ext = (header.split('/')[-1] or 'png').split(';')[0]
+          sig_bytes = base64.b64decode(b64)
+          if len(sig_bytes) > MAX_SIGNATURE_BYTES:
+              messages.error(request, 'Signature image is too large.')
+              return redirect('tracker:order_detail', pk=o.id)
+          sig = ContentFile(sig_bytes, name=f"signature_{o.id}_{int(time.time())}.{ext}")
+      except Exception:
+          sig = None
 
-    o.signature_file = sig
-    o.completion_attachment = att
-    o.signed_by = request.user
-    o.signed_at = now
-    o.completion_date = now
+  # If a signature file was uploaded directly, validate size/type
+  if sig and hasattr(sig, 'name'):
+      s_ext = _ext_of_name(sig.name)
+      if s_ext not in ALLOWED_SIGNATURE_EXTS:
+          messages.error(request, 'Invalid signature file type. Use PNG or JPG.')
+          return redirect('tracker:order_detail', pk=o.id)
+      if hasattr(sig, 'size') and sig.size > MAX_SIGNATURE_BYTES:
+          messages.error(request, 'Signature file too large (max 2MB).')
+          return redirect('tracker:order_detail', pk=o.id)
 
-    o.status = 'completed'
-    o.completed_at = now
-    if o.started_at:
-        o.actual_duration = int((now - o.started_at).total_seconds() // 60)
-    else:
-        # If started_at is not set, calculate from created_at
-        o.actual_duration = int((now - o.created_at).total_seconds() // 60)
+  if not sig:
+      messages.error(request, 'Please draw a signature to complete the order.')
+      return redirect('tracker:order_detail', pk=o.id)
 
-    if o.type == 'sales' and (o.quantity or 0) > 0 and o.item_name and o.brand:
-        from .utils import adjust_inventory
-        adjust_inventory(o.item_name, o.brand, (o.quantity or 0))
+  # Validate completion attachment if present
+  if att:
+      a_ext = _ext_of_name(att.name)
+      if a_ext not in ALLOWED_ATTACHMENT_EXTS:
+          messages.error(request, 'Unsupported attachment type. Allowed: images, PDF, Office documents, text.')
+          return redirect('tracker:order_detail', pk=o.id)
+      if hasattr(att, 'size') and att.size > MAX_ATTACHMENT_BYTES:
+          messages.error(request, 'Attachment too large (max 10MB).')
+          return redirect('tracker:order_detail', pk=o.id)
 
-    o.save()
-    try:
-        add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with digital signature")
-    except Exception:
-        pass
-    messages.success(request, 'Order marked as completed.')
-    return redirect('tracker:order_detail', pk=o.id)
+  now = timezone.now()
+  if not o.started_at:
+      o.started_at = now
+      o.status = 'in_progress'
+
+  o.signature_file = sig
+  o.completion_attachment = att
+  o.signed_by = request.user
+  o.signed_at = now
+  o.completion_date = now
+
+  o.status = 'completed'
+  o.completed_at = now
+  if o.started_at:
+      o.actual_duration = int((now - o.started_at).total_seconds() // 60)
+  else:
+      # If started_at is not set, calculate from created_at
+      o.actual_duration = int((now - o.created_at).total_seconds() // 60)
+
+  if o.type == 'sales' and (o.quantity or 0) > 0 and o.item_name and o.brand:
+      from .utils import adjust_inventory
+      adjust_inventory(o.item_name, o.brand, (o.quantity or 0))
+
+  o.save()
+  try:
+      add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with digital signature")
+  except Exception:
+      pass
+  messages.success(request, 'Order marked as completed.')
+  return redirect('tracker:order_detail', pk=o.id)
 
 
 @login_required
