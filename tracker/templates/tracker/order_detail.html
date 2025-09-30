@@ -20,6 +20,14 @@
                   <li class="breadcrumb-item active">{{ order.order_number }}</li>
                 </ol>
               </nav>
+              {% if order.status == 'completed' %}
+              <div class="alert alert-success d-inline-flex align-items-center mt-3 mb-0" role="alert">
+                <i class="fa fa-check-circle me-2"></i>
+                <div>
+                  Order completed{% if order.signed_by %} and signed by <strong>{{ order.signed_by.get_full_name|default:order.signed_by.username }}</strong>{% endif %}{% if order.completion_date %} on <strong>{{ order.completion_date|date_medium }}</strong>{% endif %}.
+                </div>
+              </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -379,9 +387,15 @@
                   <button type="button" class="btn btn-outline-secondary btn-sm" id="clearSignatureBtn" style="display: none;"><i class="fa fa-eraser me-1"></i>Clear Signature</button>
                   <button type="button" class="btn btn-success btn-sm" id="signAndCompleteBtn" style="display: none;"><i class="fa fa-check me-1"></i>Sign & Complete</button>
                 </div>
-                <div class="alert alert-info mt-3 mb-0">
+                <div class="alert alert-info mt-3 mb-2">
                   <i class="fa fa-pen me-1"></i>
-                  Sign on the canvas using mouse, touch, or an external USB pad that emulates a pen/mouse.
+                  Sign on the canvas using mouse, touch, or a USB signature pad that behaves like a pen/mouse.
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="connectUsbPadBtn">
+                    <i class="fa fa-usb me-1"></i>Connect USB Signature Pad
+                  </button>
+                  <span class="small text-muted" id="usbPadStatus">If your pad acts like a mouse/pen, you can sign without connecting.</span>
                 </div>
               </div>
             </div>
@@ -1369,12 +1383,42 @@
     }
   }
 
+  // Optional WebHID: allow connecting generic digitizer devices
+  function initializeUsbPad(){
+    const btn = document.getElementById('connectUsbPadBtn');
+    const status = document.getElementById('usbPadStatus');
+    if (!btn || !status) return;
+    if (!('hid' in navigator)) {
+      btn.style.display = 'none';
+      status.textContent = 'USB pads that act like a mouse/pen already work. WebHID not supported.';
+      return;
+    }
+    btn.addEventListener('click', async function(){
+      status.classList.remove('text-success','text-danger');
+      status.textContent = 'Requesting device permission...';
+      try {
+        const filters = [{ usagePage: 0x0D }];
+        const devices = await navigator.hid.requestDevice({ filters });
+        if (devices && devices.length) {
+          status.textContent = 'Device connected. Start signing on the canvas.';
+          status.classList.add('text-success');
+        } else {
+          status.textContent = 'No device selected.';
+        }
+      } catch (err) {
+        status.textContent = 'Could not connect to device.';
+        status.classList.add('text-danger');
+      }
+    });
+  }
+
   // Initialize everything when DOM is loaded
   document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded - initializing components');
     initializeFormToggles();
     initializePdfEmbeds();
     initializeSignaturePad();
+    initializeUsbPad();
     updateTimeTrackingDisplay();
     
     // Set up auto-refresh for time tracking
