@@ -2393,10 +2393,11 @@ def complete_order(request: HttpRequest, pk: int):
             o.status = 'in_progress'
         o.status = 'completed'
         o.completed_at = now
+        o.completion_date = now
         o.actual_duration = int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
         o.signed_by = request.user
         o.signed_at = now
-        o.save(update_fields=['status','started_at','completed_at','actual_duration','signed_by','signed_at'])
+        o.save(update_fields=['status','started_at','completed_at','completion_date','actual_duration','signed_by','signed_at'])
         messages.success(request, 'Inquiry marked as completed.')
         return redirect('tracker:order_detail', pk=o.id)
 
