@@ -2494,6 +2494,11 @@ def cancel_order(request: HttpRequest, pk: int):
     o = get_object_or_404(Order, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
+    # Disallow cancelling inquiries — they are auto-completed on creation
+    if o.type == 'inquiry':
+        messages.error(request, 'Inquiry orders cannot be cancelled.')
+        return redirect('tracker:order_detail', pk=o.id)
+
     reason = (request.POST.get('reason') or '').strip()
     if not reason:
         messages.error(request, 'Cancellation requires a reason.')
