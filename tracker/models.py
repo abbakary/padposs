@@ -237,7 +237,7 @@ class OrderAttachment(models.Model):
         ordering = ['-uploaded_at']
         indexes = [
             models.Index(fields=['order'], name='idx_order_attachment_order'),
-            models.Index(fields=['uploaded_at'], name='idx_order_attachment_uploaded_at'),
+            models.Index(fields=['uploaded_at'], name='idx_order_att_uploaded_at'),
         ]
 
 
@@ -333,7 +333,12 @@ class Profile(models.Model):
 
 
 class CustomerNote(models.Model):
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='notes')
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='note_entries',
+        related_query_name='note_entry',
+    )
     content = models.TextField()
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_notes')
     created_at = models.DateTimeField(auto_now_add=True)
