@@ -1,7 +1,7 @@
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 from datetime import timedelta
-import pytz
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .models import Order
 
@@ -10,8 +10,8 @@ class TimezoneMiddleware(MiddlewareMixin):
         tzname = request.COOKIES.get('django_timezone')
         if tzname:
             try:
-                timezone.activate(pytz.timezone(tzname))
-            except (pytz.UnknownTimeZoneError, pytz.exceptions.UnknownTimeZoneError):
+                timezone.activate(ZoneInfo(tzname))
+            except ZoneInfoNotFoundError:
                 timezone.deactivate()
         else:
             timezone.deactivate()
