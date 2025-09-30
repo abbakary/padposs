@@ -175,267 +175,49 @@ class Order(models.Model):
     signature_file = models.ImageField(upload_to='order_signatures/', blank=True, null=True)
     completion_attachment = models.FileField(upload_to='order_attachments/', blank=True, null=True)
     signed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_signed')
-    signed_at = models.DateTimeField(blank=True, null=True)
 
-    # Cancellation metadata
+    # Additional fields used across the app
+    completion_date = models.DateTimeField(blank=True, null=True)
     cancellation_reason = models.TextField(blank=True, null=True)
-
-    def auto_progress_if_elapsed(self) -> bool:
-        """Auto-progress timing rules.
-        - All types: created -> in_progress after 10 minutes
-        - Inquiry: in_progress -> completed after additional 10 minutes
-        Returns True if a change was made."""
-        try:
-            now = timezone.now()
-            changed = False
-            if self.status == 'created' and self.created_at:
-                if (now - self.created_at) >= timedelta(minutes=10):
-                    self.status = 'in_progress'
-                    if not self.started_at:
-                        self.started_at = now
-                    self.save(update_fields=['status', 'started_at'])
-                    changed = True
-            # Additional rule for inquiry orders
-            if self.type == 'inquiry' and self.status == 'in_progress' and self.started_at:
-                if (now - self.started_at) >= timedelta(minutes=10):
-                    self.status = 'completed'
-                    self.completed_at = now
-                    self.actual_duration = int(((now - (self.started_at or self.created_at)).total_seconds()) // 60)
-                    self.save(update_fields=['status', 'completed_at', 'actual_duration'])
-                    changed = True
-            return changed
-        except Exception as e:
-            print(f"Error in auto_progress_if_elapsed: {e}")
-            return False
-
-    def save(self, *args, **kwargs):
-        creating = self._state.adding
-        if not self.order_number:
-            self.order_number = f"ORD{str(uuid.uuid4())[:8].upper()}"
-            while Order.objects.filter(order_number=self.order_number).exists():
-                self.order_number = f"ORD{str(uuid.uuid4())[:8].upper()}"
-        super().save(*args, **kwargs)
-        if creating:
-            self.customer.total_visits = (self.customer.total_visits or 0) + 1
-            self.customer.last_visit = timezone.now()
-            self.customer.save()
 
     def __str__(self):
         return f"{self.order_number} - {self.customer.full_name}"
 
+    def auto_progress_if_elapsed(self):
+        """Automatically move created -> in_progress after 10 minutes."""
+        if self.status == 'created' and (timezone.now() - self.created_at) >= timedelta(minutes=10):
+            self.status = 'in_progress'
+            self.started_at = self.started_at or timezone.now()
+            self.save(update_fields=['status', 'started_at'])
+
     class Meta:
         indexes = [
+            models.Index(fields=["order_number"], name="idx_order_number"),
             models.Index(fields=["status"], name="idx_order_status"),
             models.Index(fields=["type"], name="idx_order_type"),
-            models.Index(fields=["priority"], name="idx_order_priority"),
             models.Index(fields=["created_at"], name="idx_order_created"),
-            models.Index(fields=["completed_at"], name="idx_order_completed"),
-            models.Index(fields=["customer", "created_at"], name="idx_order_cust_created"),
-            models.Index(fields=["type", "status"], name="idx_order_type_status"),
         ]
 
 
-class CustomerNote(models.Model):
-    """Model to store notes for customers"""
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='notes_history')
-    note = models.TextField()
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='notes_created')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+class OrderAttachment(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='attachments')
+    file = models.FileField(upload_to='order_attachments/')
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_order_attachments')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    title = models.CharField(max_length=255, blank=True, null=True)
 
-    class Meta:
-        ordering = ['-created_at']
-        verbose_name = 'Customer Note'
-        verbose_name_plural = 'Customer Notes'
-
-    def __str__(self):
-        return f'Note for {self.customer.full_name} by {self.created_by.username if self.created_by else "System"}'
-
-
-class Brand(models.Model):
-    """Brand model to represent different product brands"""
-    name = models.CharField(max_length=64, unique=True)
-    description = models.TextField(blank=True, null=True)
-    logo = models.ImageField(upload_to='brand_logos/', blank=True, null=True)
-    website = models.URLField(blank=True, null=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    def filename(self):
+        try:
+            return self.file.name.split('/')[-1]
+        except Exception:
+            return self.file.name
 
     def __str__(self):
-        return self.name
+        return f"Attachment #{self.id} for {self.order.order_number}"
 
     class Meta:
-        ordering = ['name']
+        ordering = ['-uploaded_at']
         indexes = [
-            models.Index(fields=["name"], name="idx_brand_name"),
-            models.Index(fields=["is_active"], name="idx_brand_active"),
+            models.Index(fields=['order'], name='idx_order_attachment_order'),
+            models.Index(fields=['uploaded_at'], name='idx_order_attachment_uploaded_at'),
         ]
-
-class InventoryItem(models.Model):
-    """Inventory item that belongs to a specific brand"""
-    name = models.CharField(max_length=128)
-    brand = models.ForeignKey(
-        Brand, 
-        on_delete=models.PROTECT,  # Prevent deletion of brand if items exist
-        related_name="items",
-        help_text="Product brand"
-    )
-    description = models.TextField(blank=True, null=True)
-    quantity = models.PositiveIntegerField(
-        default=0,
-        help_text="Current stock quantity"
-    )
-    price = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        default=0,
-        help_text="Selling price per unit"
-    )
-    cost_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0,
-        help_text="Purchase cost per unit"
-    )
-    sku = models.CharField(
-        max_length=64, 
-        unique=True, 
-        blank=True, 
-        null=True,
-        help_text="Stock Keeping Unit"
-    )
-    barcode = models.CharField(
-        max_length=64, 
-        blank=True, 
-        null=True,
-        help_text="Barcode (UPC, EAN, etc.)"
-    )
-    reorder_level = models.PositiveIntegerField(
-        default=5, 
-        help_text="Quantity at which to reorder"
-    )
-    location = models.CharField(
-        max_length=64, 
-        blank=True, 
-        null=True,
-        help_text="Storage location in warehouse"
-    )
-    is_active = models.BooleanField(
-        default=True,
-        help_text="Is this item currently available for sale?"
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.brand.name} - {self.name}"
-
-    @property
-    def needs_reorder(self):
-        return self.quantity <= self.reorder_level
-
-    class Meta:
-        ordering = ['brand__name', 'name']
-        indexes = [
-            models.Index(fields=["name"], name="idx_item_name"),
-            models.Index(fields=["brand"], name="idx_item_brand"),
-            models.Index(fields=["name", "brand"], name="idx_item_name_brand"),
-            models.Index(fields=["created_at"], name="idx_item_created"),
-            models.Index(fields=["sku"], name="idx_item_sku"),
-            models.Index(fields=["barcode"], name="idx_item_barcode"),
-        ]
-        unique_together = [['name', 'brand']]
-
-
-class InventoryAdjustment(models.Model):
-    """Tracks all inventory adjustments (additions, removals, corrections)"""
-    ADJUSTMENT_TYPES = [
-        ('addition', 'Stock Addition'),
-        ('removal', 'Stock Removal'),
-        ('correction', 'Quantity Correction'),
-        ('damage', 'Damaged Goods'),
-        ('return', 'Customer Return'),
-    ]
-
-    item = models.ForeignKey(
-        InventoryItem,
-        on_delete=models.CASCADE,
-        related_name='adjustments',
-        help_text='The inventory item being adjusted'
-    )
-    adjustment_type = models.CharField(
-        max_length=20,
-        choices=ADJUSTMENT_TYPES,
-        help_text='Type of adjustment being made'
-    )
-    quantity = models.IntegerField(
-        help_text='Positive for additions, negative for removals'
-    )
-    previous_quantity = models.IntegerField(
-        help_text='Quantity before adjustment'
-    )
-    new_quantity = models.IntegerField(
-        help_text='Quantity after adjustment'
-    )
-    notes = models.TextField(
-        blank=True,
-        null=True,
-        help_text='Reason for adjustment or additional notes'
-    )
-    adjusted_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='inventory_adjustments',
-        help_text='User who made this adjustment'
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    reference = models.CharField(
-        max_length=64,
-        blank=True,
-        null=True,
-        help_text='Optional reference number or ID for tracking'
-    )
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['item', 'created_at']),
-            models.Index(fields=['adjustment_type']),
-            models.Index(fields=['reference']),
-        ]
-
-    def __str__(self):
-        return f"{self.get_adjustment_type_display()} - {self.item.name} ({self.quantity:+d})"
-
-    def save(self, *args, **kwargs):
-        # Calculate previous and new quantities
-        if not self.pk:  # Only for new records
-            self.previous_quantity = self.item.quantity
-            self.new_quantity = self.previous_quantity + self.quantity
-            
-            # Update the inventory item quantity
-            self.item.quantity = self.new_quantity
-            self.item.save(update_fields=['quantity'])
-            
-            # Ensure adjusted_by is set if not provided
-            if not self.adjusted_by_id and hasattr(self.item, '_current_user'):
-                self.adjusted_by = self.item._current_user
-        
-        super().save(*args, **kwargs)
-
-
-def user_avatar_path(instance, filename):
-    # file will be uploaded to MEDIA_ROOT/avatars/user_<id>/<filename>
-    return f'avatars/user_{instance.user.id}/{filename}'
-
-class Profile(models.Model):
-    """User profile storing extra fields like photo and preferences."""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    photo = models.ImageField(upload_to=user_avatar_path, blank=True, null=True, help_text='User profile picture')
-    timezone = models.CharField(max_length=100, default='UTC', help_text='User timezone for displaying dates and times')
-    branch = models.ForeignKey('Branch', on_delete=models.SET_NULL, null=True, blank=True, related_name='users', help_text='Assigned branch/location')
-
-    def __str__(self):
-        return f"{self.user.username}'s profile"

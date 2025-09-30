@@ -1,4 +1,4 @@
-{% extends 'tracker/base.html' %}
+{% extends 'tracker/base_formatted.html' %}
 {% load static custom_filters tz %}
 {% load date_filters %}
 
@@ -160,6 +160,60 @@
     <h6 class="mb-0"><i class="fa fa-paperclip me-2"></i>Attachments & Signatures</h6>
   </div>
   <div class="card-body">
+    <!-- Existing Attachments Gallery -->
+    {% if order.attachments.all %}
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <small class="text-muted">Other Attachments</small>
+        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#attachmentModal">
+          <i class="fa fa-plus me-1"></i>Add
+        </button>
+      </div>
+      <div class="row g-2">
+        {% for att in order.attachments.all %}
+        <div class="col-6 col-md-4 col-lg-3">
+          <div class="border rounded p-2 text-center h-100">
+            {% with fname=att.file.name|lower url=att.file.url %}
+              {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
+                <img src="{{ url }}" alt="Attachment" class="img-fluid rounded" style="max-height: 100px; object-fit: cover;">
+              {% elif fname and '.pdf' in fname %}
+                <i class="fa fa-file-pdf-o fa-2x text-danger"></i>
+              {% else %}
+                <i class="fa fa-file fa-2x text-secondary"></i>
+              {% endif %}
+            {% endwith %}
+            <div class="small text-truncate mt-1" title="{{ att.filename }}">{{ att.filename }}</div>
+            <a href="{{ att.file.url }}" target="_blank" class="btn btn-outline-primary btn-sm mt-1"><i class="fa fa-download me-1"></i>Open</a>
+          </div>
+        </div>
+        {% empty %}
+        <div class="col-12"><div class="text-muted">No extra attachments yet.</div></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <small class="text-muted">Digital Signature</small>
+      </div>
+      <div class="border rounded bg-light p-2">
+        <form id="inlineSignForm" method="post" action="{% url 'tracker:complete_order' pk=order.id %}">
+          {% csrf_token %}
+          <input type="hidden" name="signature_data" id="signatureDataInline">
+          <div class="position-relative" style="height:220px;">
+            <canvas id="signaturePadInline" class="w-100 h-100" style="background:#fff; border:1px dashed #dee2e6; border-radius:.25rem;"></canvas>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <small class="text-muted">Sign here using the external pad (USB) or touch/mouse.</small>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearInlineSignature"><i class="fa fa-eraser me-1"></i>Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Signed Document Display - FIXED -->
     {% if order.signature_file and order.completion_attachment %}
     <div class="mb-3">
@@ -273,66 +327,127 @@
   </div>
 </div>
 
-      {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
-
-      <!-- Complete Order (hidden by default) -->
-      <div class="card shadow-sm mb-4 d-none" id="completeFormCard">
-        <div class="card-header bg-success bg-opacity-10">
-          <h6 class="mb-0 text-success"><i class="fa fa-check-circle me-2"></i>Complete Order</h6>
+<!-- Attachments Upload Modal -->
+<div class="modal fade" id="attachmentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa fa-paperclip me-2"></i>Add Attachments</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" enctype="multipart/form-data" action="{% url 'tracker:add_order_attachments' pk=order.id %}">
+        <div class="modal-body">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label fw-medium">Select one or more files</label>
+            <input type="file" class="form-control" name="attachments" id="attachmentsInput" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.zip">
+            <small class="text-muted">Uploading attachments will not complete the order.</small>
+          </div>
         </div>
-        <div class="card-body">
-          <form method="post" enctype="multipart/form-data" action="{% url 'tracker:complete_order' pk=order.id %}" id="completeForm">
-            {% csrf_token %}
-            <input type="hidden" name="signature_data" id="signatureDataInput">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label fw-medium"><i class="fa fa-paperclip me-1"></i>Upload Document/Image (required)</label>
-                <input type="file" name="completion_attachment" class="form-control" id="attachmentInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" required>
-                <small class="text-muted">Choose the document or image to sign</small>
-                <div class="mt-3">
-                  <div id="docSignContainer" class="border rounded position-relative overflow-hidden bg-light" style="height:360px;">
-                    <div id="docPreviewHost" class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">No file selected</div>
-                    <canvas id="signaturePad" class="position-absolute top-0 start-0 w-100 h-100" style="cursor: crosshair; z-index: 2; display: none;"></canvas>
-                  </div>
-                  <div class="d-flex gap-2 mt-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="clearSignatureBtn" style="display: none;"><i class="fa fa-eraser me-1"></i>Clear Signature</button>
-                    <button type="button" class="btn btn-success btn-sm" id="signAndCompleteBtn" style="display: none;"><i class="fa fa-check me-1"></i>Sign & Complete</button>
-                  </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary"><i class="fa fa-upload me-1"></i>Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Sign & Complete Modal -->
+<div class="modal fade" id="completeModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title"><i class="fa fa-check-circle me-2"></i>Sign & Complete Order</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form method="post" enctype="multipart/form-data" action="{% url 'tracker:complete_order' pk=order.id %}" id="completeForm">
+          {% csrf_token %}
+          <input type="hidden" name="signature_data" id="signatureDataInput">
+          <div class="row g-3">
+            <div class="col-md-7">
+              <label class="form-label fw-medium"><i class="fa fa-paperclip me-1"></i>Upload Document/Image (optional)</label>
+              <input type="file" name="completion_attachment" class="form-control" id="attachmentInput" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt">
+              <small class="text-muted">Optional: choose a document or image to sign</small>
+              <div class="mt-3">
+                <div id="docSignContainer" class="border rounded position-relative overflow-hidden bg-light" style="height:360px;">
+                  <div id="docPreviewHost" class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">No file selected</div>
+                  <canvas id="signaturePad" class="position-absolute top-0 start-0 w-100 h-100" style="cursor: crosshair; z-index: 2; display: none;"></canvas>
                 </div>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label fw-medium"><i class="fa fa-info-circle me-1"></i>Preview</label>
-                <div class="mt-1" id="attachmentPreview" aria-live="polite"></div>
+                <div class="d-flex gap-2 mt-2">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="clearSignatureBtn" style="display: none;"><i class="fa fa-eraser me-1"></i>Clear Signature</button>
+                  <button type="button" class="btn btn-success btn-sm" id="signAndCompleteBtn" style="display: none;"><i class="fa fa-check me-1"></i>Sign & Complete</button>
+                </div>
                 <div class="alert alert-info mt-3 mb-0">
                   <i class="fa fa-pen me-1"></i>
-                  Upload a document or image first, then draw your digital signature directly on top of it, and click "Sign & Complete".
+                  Sign on the canvas using mouse, touch, or an external USB pad that emulates a pen/mouse.
                 </div>
               </div>
             </div>
-            <div class="mt-3 d-flex gap-2">
-              <button class="btn btn-outline-secondary" type="button" id="hideCompleteBtn"><i class="fa fa-chevron-up me-1"></i>Hide</button>
+            <div class="col-md-5">
+              <label class="form-label fw-medium"><i class="fa fa-info-circle me-1"></i>Live Signature Preview</label>
+              <div class="border rounded p-2 bg-light">
+                <div class="small text-muted mb-2">Your signature as captured:</div>
+                <div class="d-flex align-items-center justify-content-center" style="height:180px;">
+                  <canvas id="signaturePreview" width="400" height="160" class="w-100" style="max-height: 180px; background:#fff; border:1px dashed #dee2e6;"></canvas>
+                </div>
+              </div>
             </div>
-          </form>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-success" id="footerSignAndComplete"><i class="fa fa-check me-1"></i>Sign & Complete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Order Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="fa fa-times-circle me-2"></i>Cancel Order</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'tracker:cancel_order' pk=order.id %}" id="cancelForm">
+        <div class="modal-body">
+          {% csrf_token %}
+          <label class="form-label fw-medium"><i class="fa fa-comment me-1"></i>Cancellation Reason</label>
+          <textarea name="reason" class="form-control" rows="3" required placeholder="Please provide a reason for cancellation..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-danger" type="submit"><i class="fa fa-times me-1"></i>Cancel Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+      {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
+
+      <!-- Action Buttons (Modals) -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success bg-opacity-10">
+          <h6 class="mb-0"><i class="fa fa-check-circle me-2 text-success"></i>Finalize</h6>
+        </div>
+        <div class="card-body d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#attachmentModal">
+            <i class="fa fa-paperclip me-1"></i>Add Attachments
+          </button>
+          <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeModal">
+            <i class="fa fa-pen me-1"></i>Sign & Complete
+          </button>
+          <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+            <i class="fa fa-times me-1"></i>Cancel Order
+          </button>
         </div>
       </div>
 
-      <!-- Cancel Order (hidden by default) -->
-      <div class="card shadow-sm mb-4 d-none" id="cancelFormCard">
-        <div class="card-header bg-danger bg-opacity-10">
-          <h6 class="mb-0 text-danger"><i class="fa fa-times-circle me-2"></i>Cancel Order</h6>
-        </div>
-        <div class="card-body">
-          <form method="post" action="{% url 'tracker:cancel_order' pk=order.id %}" id="cancelForm">
-            {% csrf_token %}
-            <label class="form-label fw-medium"><i class="fa fa-comment me-1"></i>Cancellation Reason</label>
-            <textarea name="reason" class="form-control" rows="3" required placeholder="Please provide a reason for cancellation..."></textarea>
-            <div class="mt-3 d-flex gap-2">
-              <button class="btn btn-danger" type="submit"><i class="fa fa-times me-1"></i>Cancel Order</button>
-              <button class="btn btn-outline-secondary" type="button" id="hideCancelBtn"><i class="fa fa-chevron-up me-1"></i>Hide</button>
-            </div>
-          </form>
-        </div>
-      </div>
       {% endif %}
     </div>
 
@@ -620,46 +735,19 @@
 {% block extra_js %}
 <script>
 (function(){
-  // Initialize form toggle functionality
+  var bootstrap = window.bootstrap || (function(){ try { return window['bootstrap']; } catch(e){ return undefined; } })();
+  // Initialize action buttons to trigger modals
   function initializeFormToggles() {
-    const showCompleteBtn = document.getElementById('showCompleteBtn');
-    const showCancelBtn = document.getElementById('showCancelBtn');
-    const hideCompleteBtn = document.getElementById('hideCompleteBtn');
-    const hideCancelBtn = document.getElementById('hideCancelBtn');
-
-    function reveal(cardId){
-      const c = document.getElementById(cardId);
-      if(!c) return;
-      c.classList.remove('d-none');
-      c.scrollIntoView({ behavior:'smooth', block:'start' });
-    }
-    
-    function hide(cardId){ 
-      const c = document.getElementById(cardId); 
-      if(c) c.classList.add('d-none'); 
-    }
-
-    if(showCompleteBtn){ 
-      showCompleteBtn.addEventListener('click', ()=>{ 
-        reveal('completeFormCard'); 
-        hide('cancelFormCard'); 
-      }); 
-    }
-    
-    if(showCancelBtn){ 
-      showCancelBtn.addEventListener('click', ()=>{ 
-        reveal('cancelFormCard'); 
-        hide('completeFormCard'); 
-      }); 
-    }
-    
-    if(hideCompleteBtn){ 
-      hideCompleteBtn.addEventListener('click', ()=> hide('completeFormCard')); 
-    }
-    
-    if(hideCancelBtn){ 
-      hideCancelBtn.addEventListener('click', ()=> hide('cancelFormCard')); 
-    }
+    const completeBtn = document.getElementById('showCompleteBtn');
+    const cancelBtn = document.getElementById('showCancelBtn');
+    if (completeBtn) completeBtn.addEventListener('click', function(){
+      var m = document.getElementById('completeModal');
+      if (m) new bootstrap.Modal(m).show();
+    });
+    if (cancelBtn) cancelBtn.addEventListener('click', function(){
+      var m = document.getElementById('cancelModal');
+      if (m) new bootstrap.Modal(m).show();
+    });
   }
 
   // PDF embedding with graceful fallback
@@ -799,6 +887,14 @@
         ctx.closePath();
       }
 
+      // Live preview mirror
+      const preview = document.getElementById('signaturePreview');
+      const pctx = preview ? preview.getContext('2d') : null;
+      function mirrorToPreview(cb){ if (!pctx || !preview) return; cb(pctx); }
+
+      const origStroke = ctx.stroke.bind(ctx);
+      ctx.stroke = function(){ origStroke(); mirrorToPreview(function(pc){ pc.lineWidth = ctx.lineWidth; pc.lineCap = ctx.lineCap; pc.lineJoin = ctx.lineJoin; pc.strokeStyle = ctx.strokeStyle; pc.globalCompositeOperation = ctx.globalCompositeOperation; pc.beginPath(); pc.moveTo(lastX, lastY); pc.lineTo(lastX, lastY); pc.stroke(); }); };
+
       // Remove any existing event listeners
       canvas.removeEventListener('mousedown', startDrawing);
       canvas.removeEventListener('mousemove', draw);
@@ -807,16 +903,23 @@
       canvas.removeEventListener('touchstart', startDrawing);
       canvas.removeEventListener('touchmove', draw);
       canvas.removeEventListener('touchend', stopDrawing);
+      canvas.removeEventListener('pointerdown', startDrawing);
+      canvas.removeEventListener('pointermove', draw);
+      canvas.removeEventListener('pointerup', stopDrawing);
 
-      // Add event listeners with capture phase
+      // Add event listeners with capture phase (mouse/touch/pointer)
       canvas.addEventListener('mousedown', startDrawing, true);
       canvas.addEventListener('mousemove', draw, true);
       canvas.addEventListener('mouseup', stopDrawing, true);
       canvas.addEventListener('mouseout', stopDrawing, true);
-      
+
       canvas.addEventListener('touchstart', startDrawing, true);
       canvas.addEventListener('touchmove', draw, true);
       canvas.addEventListener('touchend', stopDrawing, true);
+
+      canvas.addEventListener('pointerdown', startDrawing, true);
+      canvas.addEventListener('pointermove', draw, true);
+      canvas.addEventListener('pointerup', stopDrawing, true);
     }
 
     function clearSignature() {
@@ -1033,6 +1136,30 @@
     // Initialize sign button on page load
     document.addEventListener('DOMContentLoaded', function() {
       setTimeout(setupSignButton, 500);
+      var footerBtn = document.getElementById('footerSignAndComplete');
+      if (footerBtn) footerBtn.addEventListener('click', function(e){ var btn = document.getElementById('signAndCompleteBtn'); if (btn) btn.click(); });
+
+      // Inline signature pad (auto-complete on signature)
+      var inlineCanvas = document.getElementById('signaturePadInline');
+      var inlineForm = document.getElementById('inlineSignForm');
+      var inlineHidden = document.getElementById('signatureDataInline');
+      var inlineClear = document.getElementById('clearInlineSignature');
+      if (inlineCanvas && inlineForm && inlineHidden) {
+        var ictx = inlineCanvas.getContext('2d');
+        function resizeInline(){ inlineCanvas.width = inlineCanvas.clientWidth; inlineCanvas.height = inlineCanvas.clientHeight; }
+        resizeInline();
+        window.addEventListener('resize', resizeInline);
+        ictx.lineWidth = 2.5; ictx.lineCap = 'round'; ictx.lineJoin = 'round'; ictx.strokeStyle = '#000';
+        var drawing=false, lastX=0, lastY=0, hasSig=false;
+        function pos(e){ var r=inlineCanvas.getBoundingClientRect(); var cx=(e.touches?e.touches[0].clientX:e.clientX)||0; var cy=(e.touches?e.touches[0].clientY:e.clientY)||0; return {x:cx-r.left,y:cy-r.top}; }
+        function start(e){ e.preventDefault(); drawing=true; var p=pos(e); lastX=p.x; lastY=p.y; ictx.beginPath(); ictx.moveTo(lastX,lastY); }
+        function move(e){ if(!drawing) return; e.preventDefault(); var p=pos(e); ictx.lineTo(p.x,p.y); ictx.stroke(); lastX=p.x; lastY=p.y; hasSig=true; }
+        function stop(){ if(!drawing) return; drawing=false; ictx.closePath(); if(hasSig){ try{ inlineHidden.value = inlineCanvas.toDataURL('image/png'); inlineForm.submit(); }catch(err){} } }
+        ;['mousedown','touchstart','pointerdown'].forEach(ev=>inlineCanvas.addEventListener(ev,start,{passive:false}));
+        ;['mousemove','touchmove','pointermove'].forEach(ev=>inlineCanvas.addEventListener(ev,move,{passive:false}));
+        ;['mouseup','mouseout','touchend','pointerup'].forEach(ev=>inlineCanvas.addEventListener(ev,stop,{passive:false}));
+        if (inlineClear) inlineClear.addEventListener('click', function(){ ictx.clearRect(0,0,inlineCanvas.width,inlineCanvas.height); hasSig=false; });
+      }
     });
 
     // Initialize on load

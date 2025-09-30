@@ -20,7 +20,7 @@ from django.contrib.auth.models import User, Group
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ValidationError
-from .models import Profile, Customer, Order, Vehicle, InventoryItem, CustomerNote, Brand, Branch
+from .models import Profile, Customer, Order, Vehicle, InventoryItem, CustomerNote, Brand, Branch, OrderAttachment
 from django.core.paginator import Paginator
 from .utils import add_audit_log, get_audit_logs, clear_audit_logs, scope_queryset
 from datetime import datetime, timedelta
@@ -2405,11 +2405,6 @@ def complete_order(request: HttpRequest, pk: int):
     sig_data = request.POST.get('signature_data') or ''
     att = request.FILES.get('completion_attachment')
 
-    # Enforce required evidence: an attachment PLUS a signature (file or drawn)
-    if not att:
-        messages.error(request, 'Please upload a completion document or image before completing the order.')
-        return redirect('tracker:order_detail', pk=o.id)
-
     # If signature file missing but signature_data exists, decode it into an uploaded file
     if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
         try:
@@ -2448,7 +2443,7 @@ def complete_order(request: HttpRequest, pk: int):
 
     o.save()
     try:
-        add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with signature/attachment")
+        add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with digital signature")
     except Exception:
         pass
     messages.success(request, 'Order marked as completed.')
@@ -2476,6 +2471,42 @@ def cancel_order(request: HttpRequest, pk: int):
         pass
     messages.success(request, 'Order cancelled.')
     return redirect('tracker:order_detail', pk=o.id)
+
+
+@login_required
+def add_order_attachments(request: HttpRequest, pk: int):
+    o = get_object_or_404(Order, pk=pk)
+    if request.method != 'POST':
+        return redirect('tracker:order_detail', pk=o.id)
+    files = request.FILES.getlist('attachments')
+    added = 0
+    for f in files:
+        try:
+            OrderAttachment.objects.create(order=o, file=f, uploaded_by=request.user)
+            added += 1
+        except Exception:
+            continue
+    if added:
+        try:
+            add_audit_log(request.user, 'attachment_added', f"Added {added} attachment(s) to order {o.order_number}")
+        except Exception:
+            pass
+        messages.success(request, f'Uploaded {added} attachment(s).')
+    else:
+        messages.error(request, 'No attachments were uploaded.')
+    return redirect('tracker:order_detail', pk=o.id)
+
+
+@login_required
+def delete_order_attachment(request: HttpRequest, att_id: int):
+    att = get_object_or_404(OrderAttachment, pk=att_id)
+    order_id = att.order_id
+    try:
+        att.delete()
+        messages.success(request, 'Attachment deleted.')
+    except Exception:
+        messages.error(request, 'Could not delete attachment.')
+    return redirect('tracker:order_detail', pk=order_id)
 
 
 @login_required
