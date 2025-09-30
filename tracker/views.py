@@ -2102,6 +2102,7 @@ def orders_list(request: HttpRequest):
     paginator = Paginator(orders, 20)
     page = request.GET.get('page')
     orders = paginator.get_page(page)
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     return render(request, "tracker/orders_list.html", {
         "orders": orders,
         "status": status,
@@ -2112,6 +2113,7 @@ def orders_list(request: HttpRequest):
         "completed_today": completed_today,
         "urgent_orders": urgent_orders,
         "revenue_today": revenue_today,
+        "branches": branches,
     })
     # Support GET ?customer=<id> to go straight into order form for that customer
     if request.method == 'GET':
