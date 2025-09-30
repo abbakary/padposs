@@ -200,6 +200,22 @@ class Order(models.Model):
             models.Index(fields=["created_at"], name="idx_order_created"),
         ]
 
+    def save(self, *args, **kwargs):
+        """Ensure inquiries are treated as immediately completed and excluded from normal status lifecycles.
+        This centralizes the behavior so all creation paths don't need to repeat logic.
+        """
+        # If this is an inquiry, make it completed and set completed timestamps
+        if self.type == 'inquiry':
+            now = timezone.now()
+            # Preserve any explicit completed_at if already provided, otherwise set
+            if not self.completed_at:
+                self.completed_at = now
+            if not self.completion_date:
+                self.completion_date = now
+            # Force status to completed
+            self.status = 'completed'
+        super().save(*args, **kwargs)
+
 
 class OrderAttachment(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='attachments')
