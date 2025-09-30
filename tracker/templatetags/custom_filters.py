@@ -184,7 +184,7 @@ def order_last_update(order):
         return timezone.now() if 'timezone' in locals() else None
 
 @register.filter(name='margin_percentage')
-def margin_percentage(price: Union[float, int, str, Decimal], 
+def margin_percentage(price: Union[float, int, str, Decimal],
                     cost_price: Union[float, int, str, Decimal, None] = None) -> float:
     """
     Calculate the margin percentage between price and cost price.
@@ -205,13 +205,28 @@ def margin_percentage(price: Union[float, int, str, Decimal],
             # Handle two separate values
             price_val = float(price)
             cost_val = float(cost_price) if cost_price is not None else 0
-            
+
         if price_val <= 0 or cost_val <= 0:
             return 0
-            
+
         margin = ((price_val - cost_val) / price_val) * 100
         return round(margin, 2)
     except (ValueError, TypeError, AttributeError):
         return 0
     except Exception:
         return ''
+
+@register.filter(name='safe_filesize')
+def safe_filesize(file_field):
+    """
+    Safely get the file size of a FileField, returning 'Unknown' if the file doesn't exist.
+    Usage: {{ file_field|safe_filesize|filesizeformat }}
+    """
+    try:
+        if file_field and file_field.name:
+            return file_field.size
+        return 0
+    except (FileNotFoundError, OSError):
+        return 0
+    except Exception:
+        return 0
