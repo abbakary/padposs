@@ -232,9 +232,11 @@
     <div class="mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <small class="text-muted">Other Attachments</small>
+        {% if order.type != 'inquiry' %}
         <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#attachmentModal">
           <i class="fa fa-plus me-1"></i>Add
         </button>
+        {% endif %}
       </div>
       <div class="row g-2">
         {% for att in order.attachments.all %}
