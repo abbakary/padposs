@@ -2405,11 +2405,6 @@ def complete_order(request: HttpRequest, pk: int):
     sig_data = request.POST.get('signature_data') or ''
     att = request.FILES.get('completion_attachment')
 
-    # Enforce required evidence: an attachment PLUS a signature (file or drawn)
-    if not att:
-        messages.error(request, 'Please upload a completion document or image before completing the order.')
-        return redirect('tracker:order_detail', pk=o.id)
-
     # If signature file missing but signature_data exists, decode it into an uploaded file
     if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
         try:
