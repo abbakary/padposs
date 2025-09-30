@@ -239,3 +239,112 @@ class OrderAttachment(models.Model):
             models.Index(fields=['order'], name='idx_order_attachment_order'),
             models.Index(fields=['uploaded_at'], name='idx_order_attachment_uploaded_at'),
         ]
+
+
+class Brand(models.Model):
+    name = models.CharField(max_length=128, unique=True)
+    description = models.TextField(blank=True, null=True)
+    website = models.URLField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["name"], name="idx_brand_name"),
+            models.Index(fields=["is_active"], name="idx_brand_active"),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class InventoryItem(models.Model):
+    name = models.CharField(max_length=128)
+    brand = models.ForeignKey(Brand, on_delete=models.SET_NULL, null=True, blank=True, related_name='items')
+    description = models.TextField(blank=True, null=True)
+    quantity = models.PositiveIntegerField(default=0)
+    price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cost_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    sku = models.CharField(max_length=64, blank=True, null=True)
+    barcode = models.CharField(max_length=64, blank=True, null=True)
+    reorder_level = models.PositiveIntegerField(default=5)
+    location = models.CharField(max_length=128, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["name"], name="idx_inv_name"),
+            models.Index(fields=["quantity"], name="idx_inv_qty"),
+            models.Index(fields=["is_active"], name="idx_inv_active"),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=["name", "brand"], name="uniq_item_brand_name")
+        ]
+
+    def __str__(self) -> str:
+        b = self.brand.name if self.brand else "Unbranded"
+        return f"{b} - {self.name}"
+
+
+class InventoryAdjustment(models.Model):
+    ADJUSTMENT_TYPES = (
+        ("addition", "Addition"),
+        ("removal", "Removal"),
+    )
+    item = models.ForeignKey(InventoryItem, on_delete=models.CASCADE, related_name='adjustments')
+    adjustment_type = models.CharField(max_length=16, choices=ADJUSTMENT_TYPES)
+    quantity = models.PositiveIntegerField()
+    reference = models.CharField(max_length=64, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    adjusted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='inventory_adjustments')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_at'], name='idx_inv_adj_created'),
+            models.Index(fields=['adjustment_type'], name='idx_inv_adj_type'),
+        ]
+
+    # Backwards-friendly aliases used by older utility scripts
+    @property
+    def user(self):
+        return self.adjusted_by
+
+    @property
+    def date(self):
+        return self.created_at
+
+    def __str__(self) -> str:
+        return f"{self.get_adjustment_type_display()} {self.quantity} × {self.item}"
+
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True, related_name='profiles')
+    photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Profile of {self.user.username}"
+
+
+class CustomerNote(models.Model):
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='notes')
+    content = models.TextField()
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_notes')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['customer'], name='idx_cnote_customer'),
+            models.Index(fields=['created_at'], name='idx_cnote_created'),
+        ]
+
+    def __str__(self) -> str:
+        return f"Note for {self.customer.full_name} at {timezone.localtime(self.created_at).strftime('%Y-%m-%d %H:%M')}"
