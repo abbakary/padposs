@@ -142,6 +142,65 @@
                 <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.description|default:"No description provided" }}</div>
               </div>
             </div>
+
+            {# Vehicle details - show for any order that has a vehicle attached #}
+            {% if order.vehicle %}
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Vehicle</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">
+                  <div class="fw-medium">{{ order.vehicle.plate_number }}</div>
+                  <div class="small text-muted">{{ order.vehicle.make }} {{ order.vehicle.model }} {% if order.vehicle.vehicle_type %}• {{ order.vehicle.vehicle_type }}{% endif %}</div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {# Inquiry specific fields #}
+            {% if order.type == 'inquiry' %}
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Inquiry Type</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.inquiry_type|default:"-" }}</div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Questions / Details</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.questions|default:"No further details provided" }}</div>
+              </div>
+            </div>
+            {% endif %}
+
+            {# Sales specific fields #}
+            {% if order.type == 'sales' %}
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Item</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.item_name|default:"-" }}</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Brand</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.brand|default:"-" }}</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Quantity</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.quantity|default:"-" }}</div>
+              </div>
+            </div>
+            {% if order.tire_type %}
+            <div class="col-12">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Tire Type</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.tire_type }}</div>
+              </div>
+            </div>
+            {% endif %}
+            {% endif %}
             {% if order.notes %}
             <div class="col-12">
               <div class="mb-3">
