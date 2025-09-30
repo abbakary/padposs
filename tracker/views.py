@@ -2518,20 +2518,45 @@ def add_order_attachments(request: HttpRequest, pk: int):
         return redirect('tracker:order_detail', pk=o.id)
     files = request.FILES.getlist('attachments')
     added = 0
+    skipped = 0
+
+    ALLOWED_ATTACHMENT_EXTS = ['.jpg','.jpeg','.png','.gif','.webp','.pdf','.doc','.docx','.xls','.xlsx','.txt']
+    MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
+
+    def _ext_of_name(name):
+        try:
+            return ('.' + name.split('.')[-1].lower()) if '.' in name else ''
+        except Exception:
+            return ''
+
     for f in files:
         try:
+            ext = _ext_of_name(f.name)
+            if ext not in ALLOWED_ATTACHMENT_EXTS:
+                skipped += 1
+                continue
+            if hasattr(f, 'size') and f.size > MAX_ATTACHMENT_BYTES:
+                skipped += 1
+                continue
             OrderAttachment.objects.create(order=o, file=f, uploaded_by=request.user)
             added += 1
         except Exception:
+            skipped += 1
             continue
     if added:
         try:
             add_audit_log(request.user, 'attachment_added', f"Added {added} attachment(s) to order {o.order_number}")
         except Exception:
             pass
-        messages.success(request, f'Uploaded {added} attachment(s).')
+        msg = f'Uploaded {added} attachment(s).'
+        if skipped:
+            msg += f' {skipped} file(s) were skipped due to unsupported type or size.'
+        messages.success(request, msg)
     else:
-        messages.error(request, 'No attachments were uploaded.')
+        if skipped:
+            messages.error(request, 'No attachments uploaded. Files were unsupported or too large.')
+        else:
+            messages.error(request, 'No attachments were uploaded.')
     return redirect('tracker:order_detail', pk=o.id)
 
 
