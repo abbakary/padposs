@@ -570,7 +570,7 @@
           {% if order.vehicle %}
           <div class="mb-2 d-flex justify-content-between">
             <div class="text-muted">Vehicle</div>
-            <div class="fw-medium text-end">{{ order.vehicle.plate_number }}</div>
+            <div class="fw-medium text-end">{{ order.vehicle.plate_number }}{% if order.vehicle.make or order.vehicle.model %} <small class="text-muted">• {{ order.vehicle.make }} {{ order.vehicle.model }}</small>{% endif %}</div>
           </div>
           {% endif %}
           {% if order.type == 'sales' and order.item_name %}
@@ -578,6 +578,18 @@
             <div class="text-muted">Item</div>
             <div class="fw-medium text-end">{{ order.item_name }}{% if order.brand %} • {{ order.brand }}{% endif %}</div>
           </div>
+          {% endif %}
+          {% if order.type == 'inquiry' %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Inquiry Type</div>
+            <div class="fw-medium text-end">{{ order.inquiry_type|default:'-' }}</div>
+          </div>
+          {% if order.questions %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Questions</div>
+            <div class="text-end" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ order.questions }}</div>
+          </div>
+          {% endif %}
           {% endif %}
           {% if order.description %}
           <div class="mb-2 d-flex justify-content-between">
