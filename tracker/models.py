@@ -175,6 +175,8 @@ class Order(models.Model):
     signature_file = models.ImageField(upload_to='order_signatures/', blank=True, null=True)
     completion_attachment = models.FileField(upload_to='order_attachments/', blank=True, null=True)
     signed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_signed')
+    signed_at = models.DateTimeField(blank=True, null=True)
+    # completion_date is kept for historical compatibility; completed_at is canonical timestamp used across views
 
     # Additional fields used across the app
     completion_date = models.DateTimeField(blank=True, null=True)
