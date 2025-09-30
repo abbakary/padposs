@@ -479,12 +479,14 @@ def customers_list(request: HttpRequest):
     paginator = Paginator(qs, 20)
     page = request.GET.get('page')
     customers = paginator.get_page(page)
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     return render(request, "tracker/customers_list.html", {
         "customers": customers,
         "q": q,
         "active_customers": active_customers,
         "new_customers_today": new_customers_today,
         "returning_customers": returning_customers,
+        "branches": branches,
     })
 
 
