@@ -193,6 +193,27 @@
     </div>
     {% endif %}
 
+    {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
+    <div class="mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <small class="text-muted">Digital Signature</small>
+      </div>
+      <div class="border rounded bg-light p-2">
+        <form id="inlineSignForm" method="post" action="{% url 'tracker:complete_order' pk=order.id %}">
+          {% csrf_token %}
+          <input type="hidden" name="signature_data" id="signatureDataInline">
+          <div class="position-relative" style="height:220px;">
+            <canvas id="signaturePadInline" class="w-100 h-100" style="background:#fff; border:1px dashed #dee2e6; border-radius:.25rem;"></canvas>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <small class="text-muted">Sign here using the external pad (USB) or touch/mouse.</small>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearInlineSignature"><i class="fa fa-eraser me-1"></i>Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Signed Document Display - FIXED -->
     {% if order.signature_file and order.completion_attachment %}
     <div class="mb-3">
