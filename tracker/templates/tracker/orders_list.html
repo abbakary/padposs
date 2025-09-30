@@ -71,7 +71,8 @@
           {% if user.is_superuser %}
           <div class="col-md-2">
             <label class="form-label">Branch (admin)</label>
-            <input type="number" name="branch" value="{{ request.GET.branch }}" class="form-control" placeholder="Branch ID">
+            <input type="text" name="branch" value="{{ request.GET.branch }}" class="form-control" placeholder="Branch name" list="branchesList">
+            {% include 'tracker/partials/branch_datalist.html' %}
           </div>
           {% endif %}
           <div class="col-md-2 ms-auto">
