@@ -3323,7 +3323,7 @@ def api_notifications_summary(request: HttpRequest):
     overdue_count = overdue_qs.count()
     if overdue_count == 0:
         # Fallback derivation in case normalization skipped
-        overdue_qs = base_orders.filter(status__in=['created','in_progress'], created_at__lt=cutoff).order_by('created_at')
+        overdue_qs = base_orders.filter(status__in=['created','in_progress'], created_at__lt=cutoff).exclude(type='inquiry').order_by('created_at')
         overdue_count = overdue_qs.count()
     def age_minutes(dt):
         return int((now - dt).total_seconds() // 60) if dt else None
