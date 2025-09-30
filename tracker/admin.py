@@ -6,6 +6,7 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ("code", "full_name", "phone", "customer_type", "total_visits", "last_visit", "branch")
     search_fields = ("code", "full_name", "phone", "email")
     list_filter = ("customer_type", "current_status", "branch")
+    autocomplete_fields = ('branch',)
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
