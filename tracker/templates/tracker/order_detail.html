@@ -1138,6 +1138,28 @@
       setTimeout(setupSignButton, 500);
       var footerBtn = document.getElementById('footerSignAndComplete');
       if (footerBtn) footerBtn.addEventListener('click', function(e){ var btn = document.getElementById('signAndCompleteBtn'); if (btn) btn.click(); });
+
+      // Inline signature pad (auto-complete on signature)
+      var inlineCanvas = document.getElementById('signaturePadInline');
+      var inlineForm = document.getElementById('inlineSignForm');
+      var inlineHidden = document.getElementById('signatureDataInline');
+      var inlineClear = document.getElementById('clearInlineSignature');
+      if (inlineCanvas && inlineForm && inlineHidden) {
+        var ictx = inlineCanvas.getContext('2d');
+        function resizeInline(){ inlineCanvas.width = inlineCanvas.clientWidth; inlineCanvas.height = inlineCanvas.clientHeight; }
+        resizeInline();
+        window.addEventListener('resize', resizeInline);
+        ictx.lineWidth = 2.5; ictx.lineCap = 'round'; ictx.lineJoin = 'round'; ictx.strokeStyle = '#000';
+        var drawing=false, lastX=0, lastY=0, hasSig=false;
+        function pos(e){ var r=inlineCanvas.getBoundingClientRect(); var cx=(e.touches?e.touches[0].clientX:e.clientX)||0; var cy=(e.touches?e.touches[0].clientY:e.clientY)||0; return {x:cx-r.left,y:cy-r.top}; }
+        function start(e){ e.preventDefault(); drawing=true; var p=pos(e); lastX=p.x; lastY=p.y; ictx.beginPath(); ictx.moveTo(lastX,lastY); }
+        function move(e){ if(!drawing) return; e.preventDefault(); var p=pos(e); ictx.lineTo(p.x,p.y); ictx.stroke(); lastX=p.x; lastY=p.y; hasSig=true; }
+        function stop(){ if(!drawing) return; drawing=false; ictx.closePath(); if(hasSig){ try{ inlineHidden.value = inlineCanvas.toDataURL('image/png'); inlineForm.submit(); }catch(err){} } }
+        ;['mousedown','touchstart','pointerdown'].forEach(ev=>inlineCanvas.addEventListener(ev,start,{passive:false}));
+        ;['mousemove','touchmove','pointermove'].forEach(ev=>inlineCanvas.addEventListener(ev,move,{passive:false}));
+        ;['mouseup','mouseout','touchend','pointerup'].forEach(ev=>inlineCanvas.addEventListener(ev,stop,{passive:false}));
+        if (inlineClear) inlineClear.addEventListener('click', function(){ ictx.clearRect(0,0,inlineCanvas.width,inlineCanvas.height); hasSig=false; });
+      }
     });
 
     // Initialize on load
