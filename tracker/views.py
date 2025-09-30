@@ -427,6 +427,7 @@ def dashboard(request: HttpRequest):
     # Add inventory metrics to context
     inventory_metrics = metrics.get('inventory_metrics', {})
     
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     context = {
         **metrics,
         "recent_orders": recent_orders,
@@ -437,6 +438,7 @@ def dashboard(request: HttpRequest):
         "total_order_spark_json": json.dumps(total_order_spark),
         "top_orders_json": json.dumps(top_orders_json_data),
         "inventory_metrics": inventory_metrics,  # Add inventory metrics to template context
+        "branches": branches,
     }
     return render(request, "tracker/dashboard.html", context)
 
