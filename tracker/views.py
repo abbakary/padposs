@@ -2428,6 +2428,7 @@ def complete_order(request: HttpRequest, pk: int):
     o.completion_attachment = att
     o.signed_by = request.user
     o.signed_at = now
+    o.completion_date = now
 
     o.status = 'completed'
     o.completed_at = now
