@@ -168,7 +168,7 @@
           {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
             {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
               <!-- Image display with signature overlay -->
-              <img src="{{ url }}" alt="Signed Document" class="w-100 h-100" style="object-fit:contain;">
+              <img src="{{ url }}" alt="Signed Document" class="position-absolute top-0 start-0 w-100 h-100" style="object-fit:contain;">
               <img src="{{ order.signature_file.url }}" alt="Signature Overlay" class="position-absolute" style="right:12px; bottom:12px; max-width:35%; opacity:.95; z-index: 2;">
             {% elif fname and '.pdf' in fname %}
               <!-- PDF display with signature overlay - FIXED -->
@@ -379,27 +379,37 @@
         </div>
       </div>
       <!-- Quick Actions -->
-      <div class="card shadow-sm mb-4">
+      <div class="card shadow-sm mb-4 position-sticky" style="top: 1rem; z-index: 1010;">
         <div class="card-header bg-light">
           <h6 class="mb-0"><i class="fa fa-bolt me-2"></i>Quick Actions</h6>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            <a href="{% url 'tracker:orders_list' %}" class="btn btn-outline-primary">
-              <i class="fa fa-arrow-left me-2"></i>Back to Orders
-            </a>
-            <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success">
-              <i class="fa fa-edit me-2"></i>Edit Order
-            </a>
+          <div class="row g-2">
+            <div class="col-6">
+              <a href="{% url 'tracker:orders_list' %}" class="btn btn-outline-primary w-100">
+                <i class="fa fa-arrow-left me-2"></i>Back
+              </a>
+            </div>
+            <div class="col-6">
+              <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success w-100">
+                <i class="fa fa-edit me-2"></i>Edit
+              </a>
+            </div>
             {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
-            <button id="showCompleteBtn" type="button" class="btn btn-success"><i class="fa fa-check me-2"></i>Complete Order</button>
-            <button id="showCancelBtn" type="button" class="btn btn-outline-danger"><i class="fa fa-times me-2"></i>Cancel Order</button>
+            <div class="col-6">
+              <button id="showCompleteBtn" type="button" class="btn btn-success w-100"><i class="fa fa-check me-2"></i>Complete</button>
+            </div>
+            <div class="col-6">
+              <button id="showCancelBtn" type="button" class="btn btn-outline-danger w-100"><i class="fa fa-times me-2"></i>Cancel</button>
+            </div>
             {% endif %}
-            <form method="post" action="{% url 'tracker:order_delete' pk=order.id %}" onsubmit="return confirm('Delete this order?');">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'tracker:orders_list' %}">
-              <button type="submit" class="btn btn-outline-danger"><i class="fa fa-trash me-2"></i>Delete Order</button>
-            </form>
+            <div class="col-12">
+              <form method="post" action="{% url 'tracker:order_delete' pk=order.id %}" onsubmit="return confirm('Delete this order?');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'tracker:orders_list' %}">
+                <button type="submit" class="btn btn-outline-danger w-100"><i class="fa fa-trash me-2"></i>Delete</button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
