@@ -2479,6 +2479,42 @@ def cancel_order(request: HttpRequest, pk: int):
 
 
 @login_required
+def add_order_attachments(request: HttpRequest, pk: int):
+    o = get_object_or_404(Order, pk=pk)
+    if request.method != 'POST':
+        return redirect('tracker:order_detail', pk=o.id)
+    files = request.FILES.getlist('attachments')
+    added = 0
+    for f in files:
+        try:
+            OrderAttachment.objects.create(order=o, file=f, uploaded_by=request.user)
+            added += 1
+        except Exception:
+            continue
+    if added:
+        try:
+            add_audit_log(request.user, 'attachment_added', f"Added {added} attachment(s) to order {o.order_number}")
+        except Exception:
+            pass
+        messages.success(request, f'Uploaded {added} attachment(s).')
+    else:
+        messages.error(request, 'No attachments were uploaded.')
+    return redirect('tracker:order_detail', pk=o.id)
+
+
+@login_required
+def delete_order_attachment(request: HttpRequest, att_id: int):
+    att = get_object_or_404(OrderAttachment, pk=att_id)
+    order_id = att.order_id
+    try:
+        att.delete()
+        messages.success(request, 'Attachment deleted.')
+    except Exception:
+        messages.error(request, 'Could not delete attachment.')
+    return redirect('tracker:order_detail', pk=order_id)
+
+
+@login_required
 def analytics(request: HttpRequest):
     """Analytics page summarizing orders by period with four statuses only."""
     from datetime import timedelta
