@@ -4,3 +4,6 @@
 .tz-flag{width:20px;height:14px;display:block}
 .tz-phone-group input{border:0;flex:1 1 auto;padding:.375rem .75rem;min-width:0}
 .tz-phone-group input:focus{outline:0;box-shadow:none}
+.customer-phone-group{max-width:100%}
+.customer-phone-group .form-control{border:0;box-shadow:none;padding:.5rem .75rem;height:100%}
+.customer-phone-flag{width:28px;height:18px;border-radius:2px;object-fit:cover}
