@@ -34,21 +34,13 @@ from django.views.generic import View
 def _mark_overdue_orders(hours=24):
     try:
         now = timezone.now()
-        # Auto progress: created -> in_progress after 10 minutes
+        # Ensure inquiries are treated as completed (retroactively normalize existing data)
+        Order.objects.filter(type='inquiry').exclude(status='completed').update(status='completed', completed_at=now, completion_date=now)
+
+        # Auto progress: created -> in_progress after 10 minutes (exclude inquiries)
         created_cutoff = now - timedelta(minutes=10)
-        Order.objects.filter(status="created", created_at__lte=created_cutoff).update(status="in_progress", started_at=now)
-        # Inquiry: in_progress -> completed after 10 minutes in progress
-        inquiry_cutoff = now - timedelta(minutes=10)
-        qs = Order.objects.filter(type='inquiry', status='in_progress', started_at__lte=inquiry_cutoff)
-        for o in qs.only('id','started_at','created_at'):
-            try:
-                Order.objects.filter(id=o.id, status='in_progress').update(
-                    status='completed',
-                    completed_at=now,
-                    actual_duration=int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
-                )
-            except Exception:
-                continue
+        Order.objects.filter(status="created", created_at__lte=created_cutoff).exclude(type='inquiry').update(status="in_progress", started_at=now)
+
         # Persist overdue: any non-final older than cutoff, excluding inquiry
         cutoff = now - timedelta(hours=hours)
         Order.objects.filter(status__in=["created","in_progress"], created_at__lt=cutoff).exclude(type='inquiry').update(status="overdue")
@@ -435,6 +427,7 @@ def dashboard(request: HttpRequest):
     # Add inventory metrics to context
     inventory_metrics = metrics.get('inventory_metrics', {})
     
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     context = {
         **metrics,
         "recent_orders": recent_orders,
@@ -445,6 +438,7 @@ def dashboard(request: HttpRequest):
         "total_order_spark_json": json.dumps(total_order_spark),
         "top_orders_json": json.dumps(top_orders_json_data),
         "inventory_metrics": inventory_metrics,  # Add inventory metrics to template context
+        "branches": branches,
     }
     return render(request, "tracker/dashboard.html", context)
 
@@ -485,12 +479,14 @@ def customers_list(request: HttpRequest):
     paginator = Paginator(qs, 20)
     page = request.GET.get('page')
     customers = paginator.get_page(page)
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     return render(request, "tracker/customers_list.html", {
         "customers": customers,
         "q": q,
         "active_customers": active_customers,
         "new_customers_today": new_customers_today,
         "returning_customers": returning_customers,
+        "branches": branches,
     })
 
 
@@ -1851,7 +1847,8 @@ def customer_groups(request: HttpRequest):
 @login_required
 def customer_groups_advanced(request: HttpRequest):
     """Advanced customer groups page with AJAX functionality"""
-    return render(request, 'tracker/customer_groups_advanced.html')
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
+    return render(request, 'tracker/customer_groups_advanced.html', {'branches': branches})
 
 
 @login_required
@@ -2108,6 +2105,7 @@ def orders_list(request: HttpRequest):
     paginator = Paginator(orders, 20)
     page = request.GET.get('page')
     orders = paginator.get_page(page)
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     return render(request, "tracker/orders_list.html", {
         "orders": orders,
         "status": status,
@@ -2118,6 +2116,7 @@ def orders_list(request: HttpRequest):
         "completed_today": completed_today,
         "urgent_orders": urgent_orders,
         "revenue_today": revenue_today,
+        "branches": branches,
     })
     # Support GET ?customer=<id> to go straight into order form for that customer
     if request.method == 'GET':
@@ -2393,61 +2392,99 @@ def complete_order(request: HttpRequest, pk: int):
             o.status = 'in_progress'
         o.status = 'completed'
         o.completed_at = now
+        o.completion_date = now
         o.actual_duration = int(((now - (o.started_at or o.created_at)).total_seconds()) // 60)
         o.signed_by = request.user
         o.signed_at = now
-        o.save(update_fields=['status','started_at','completed_at','actual_duration','signed_by','signed_at'])
+        o.save(update_fields=['status','started_at','completed_at','completion_date','actual_duration','signed_by','signed_at'])
         messages.success(request, 'Inquiry marked as completed.')
         return redirect('tracker:order_detail', pk=o.id)
 
     # Gather inputs (non-inquiry)
-    sig = request.FILES.get('signature_file')
-    sig_data = request.POST.get('signature_data') or ''
-    att = request.FILES.get('completion_attachment')
+  sig = request.FILES.get('signature_file')
+  sig_data = request.POST.get('signature_data') or ''
+  att = request.FILES.get('completion_attachment')
 
-    # If signature file missing but signature_data exists, decode it into an uploaded file
-    if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
-        try:
-            header, b64 = sig_data.split(';base64,', 1)
-            ext = (header.split('/')[-1] or 'png').split(';')[0]
-            sig_bytes = base64.b64decode(b64)
-            sig = ContentFile(sig_bytes, name=f"signature_{o.id}_{int(time.time())}.{ext}")
-        except Exception:
-            sig = None
+  # Server-side validation rules
+  ALLOWED_ATTACHMENT_EXTS = ['.jpg','.jpeg','.png','.gif','.webp','.pdf','.doc','.docx','.xls','.xlsx','.txt']
+  ALLOWED_SIGNATURE_EXTS = ['.jpg','.jpeg','.png','.webp']
+  MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
+  MAX_SIGNATURE_BYTES = 2 * 1024 * 1024  # 2 MB
 
-    if not sig:
-        messages.error(request, 'Please draw a signature to complete the order.')
-        return redirect('tracker:order_detail', pk=o.id)
+  # Helper
+  def _ext_of_name(name):
+      try:
+          return ('.' + name.split('.')[-1].lower()) if '.' in name else ''
+      except Exception:
+          return ''
 
-    now = timezone.now()
-    if not o.started_at:
-        o.started_at = now
-        o.status = 'in_progress'
+  # If signature file missing but signature_data exists, decode it into an uploaded file
+  if not sig and sig_data.startswith('data:image/') and ';base64,' in sig_data:
+      try:
+          header, b64 = sig_data.split(';base64,', 1)
+          ext = (header.split('/')[-1] or 'png').split(';')[0]
+          sig_bytes = base64.b64decode(b64)
+          if len(sig_bytes) > MAX_SIGNATURE_BYTES:
+              messages.error(request, 'Signature image is too large.')
+              return redirect('tracker:order_detail', pk=o.id)
+          sig = ContentFile(sig_bytes, name=f"signature_{o.id}_{int(time.time())}.{ext}")
+      except Exception:
+          sig = None
 
-    o.signature_file = sig
-    o.completion_attachment = att
-    o.signed_by = request.user
-    o.signed_at = now
+  # If a signature file was uploaded directly, validate size/type
+  if sig and hasattr(sig, 'name'):
+      s_ext = _ext_of_name(sig.name)
+      if s_ext not in ALLOWED_SIGNATURE_EXTS:
+          messages.error(request, 'Invalid signature file type. Use PNG or JPG.')
+          return redirect('tracker:order_detail', pk=o.id)
+      if hasattr(sig, 'size') and sig.size > MAX_SIGNATURE_BYTES:
+          messages.error(request, 'Signature file too large (max 2MB).')
+          return redirect('tracker:order_detail', pk=o.id)
 
-    o.status = 'completed'
-    o.completed_at = now
-    if o.started_at:
-        o.actual_duration = int((now - o.started_at).total_seconds() // 60)
-    else:
-        # If started_at is not set, calculate from created_at
-        o.actual_duration = int((now - o.created_at).total_seconds() // 60)
+  if not sig:
+      messages.error(request, 'Please draw a signature to complete the order.')
+      return redirect('tracker:order_detail', pk=o.id)
 
-    if o.type == 'sales' and (o.quantity or 0) > 0 and o.item_name and o.brand:
-        from .utils import adjust_inventory
-        adjust_inventory(o.item_name, o.brand, (o.quantity or 0))
+  # Validate completion attachment if present
+  if att:
+      a_ext = _ext_of_name(att.name)
+      if a_ext not in ALLOWED_ATTACHMENT_EXTS:
+          messages.error(request, 'Unsupported attachment type. Allowed: images, PDF, Office documents, text.')
+          return redirect('tracker:order_detail', pk=o.id)
+      if hasattr(att, 'size') and att.size > MAX_ATTACHMENT_BYTES:
+          messages.error(request, 'Attachment too large (max 10MB).')
+          return redirect('tracker:order_detail', pk=o.id)
 
-    o.save()
-    try:
-        add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with digital signature")
-    except Exception:
-        pass
-    messages.success(request, 'Order marked as completed.')
-    return redirect('tracker:order_detail', pk=o.id)
+  now = timezone.now()
+  if not o.started_at:
+      o.started_at = now
+      o.status = 'in_progress'
+
+  o.signature_file = sig
+  o.completion_attachment = att
+  o.signed_by = request.user
+  o.signed_at = now
+  o.completion_date = now
+
+  o.status = 'completed'
+  o.completed_at = now
+  if o.started_at:
+      o.actual_duration = int((now - o.started_at).total_seconds() // 60)
+  else:
+      # If started_at is not set, calculate from created_at
+      o.actual_duration = int((now - o.created_at).total_seconds() // 60)
+
+  if o.type == 'sales' and (o.quantity or 0) > 0 and o.item_name and o.brand:
+      from .utils import adjust_inventory
+      adjust_inventory(o.item_name, o.brand, (o.quantity or 0))
+
+  o.save()
+  try:
+      add_audit_log(request.user, 'order_completed', f"Order {o.order_number} completed with digital signature")
+  except Exception:
+      pass
+  messages.success(request, 'Order marked as completed.')
+  return redirect('tracker:order_detail', pk=o.id)
 
 
 @login_required
@@ -2456,6 +2493,11 @@ def cancel_order(request: HttpRequest, pk: int):
     o = get_object_or_404(Order, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
+    # Disallow cancelling inquiries — they are auto-completed on creation
+    if o.type == 'inquiry':
+        messages.error(request, 'Inquiry orders cannot be cancelled.')
+        return redirect('tracker:order_detail', pk=o.id)
+
     reason = (request.POST.get('reason') or '').strip()
     if not reason:
         messages.error(request, 'Cancellation requires a reason.')
@@ -2478,22 +2520,50 @@ def add_order_attachments(request: HttpRequest, pk: int):
     o = get_object_or_404(Order, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
+    if o.type == 'inquiry':
+        messages.error(request, 'Cannot add attachments to inquiry orders.')
+        return redirect('tracker:order_detail', pk=o.id)
     files = request.FILES.getlist('attachments')
     added = 0
+    skipped = 0
+
+    ALLOWED_ATTACHMENT_EXTS = ['.jpg','.jpeg','.png','.gif','.webp','.pdf','.doc','.docx','.xls','.xlsx','.txt']
+    MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # 10 MB
+
+    def _ext_of_name(name):
+        try:
+            return ('.' + name.split('.')[-1].lower()) if '.' in name else ''
+        except Exception:
+            return ''
+
     for f in files:
         try:
+            ext = _ext_of_name(f.name)
+            if ext not in ALLOWED_ATTACHMENT_EXTS:
+                skipped += 1
+                continue
+            if hasattr(f, 'size') and f.size > MAX_ATTACHMENT_BYTES:
+                skipped += 1
+                continue
             OrderAttachment.objects.create(order=o, file=f, uploaded_by=request.user)
             added += 1
         except Exception:
+            skipped += 1
             continue
     if added:
         try:
             add_audit_log(request.user, 'attachment_added', f"Added {added} attachment(s) to order {o.order_number}")
         except Exception:
             pass
-        messages.success(request, f'Uploaded {added} attachment(s).')
+        msg = f'Uploaded {added} attachment(s).'
+        if skipped:
+            msg += f' {skipped} file(s) were skipped due to unsupported type or size.'
+        messages.success(request, msg)
     else:
-        messages.error(request, 'No attachments were uploaded.')
+        if skipped:
+            messages.error(request, 'No attachments uploaded. Files were unsupported or too large.')
+        else:
+            messages.error(request, 'No attachments were uploaded.')
     return redirect('tracker:order_detail', pk=o.id)
 
 
@@ -3255,7 +3325,7 @@ def api_notifications_summary(request: HttpRequest):
     overdue_count = overdue_qs.count()
     if overdue_count == 0:
         # Fallback derivation in case normalization skipped
-        overdue_qs = base_orders.filter(status__in=['created','in_progress'], created_at__lt=cutoff).order_by('created_at')
+        overdue_qs = base_orders.filter(status__in=['created','in_progress'], created_at__lt=cutoff).exclude(type='inquiry').order_by('created_at')
         overdue_count = overdue_qs.count()
     def age_minutes(dt):
         return int((now - dt).total_seconds() // 60) if dt else None
@@ -3793,14 +3863,22 @@ def organization_export(request: HttpRequest):
 @user_passes_test(lambda u: u.is_superuser or u.is_staff)
 def users_list(request: HttpRequest):
     q = request.GET.get('q','').strip()
-    branch_id = (request.GET.get('branch') or '').strip()
+    branch_param = (request.GET.get('branch') or '').strip()
     qs = User.objects.all().order_by('-date_joined')
     if q:
         qs = qs.filter(Q(username__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(email__icontains=q))
-    if branch_id.isdigit():
-        qs = qs.filter(profile__branch_id=int(branch_id))
-    branches = Branch.objects.filter(is_active=True).order_by('name')
-    return render(request, 'tracker/users_list.html', { 'users': qs[:100], 'q': q, 'branches': branches, 'selected_branch': branch_id })
+
+    # Support branch param as either numeric id or branch name (exact match)
+    if branch_param:
+        if branch_param.isdigit():
+            qs = qs.filter(profile__branch_id=int(branch_param))
+        else:
+            b = Branch.objects.filter(name__iexact=branch_param).first()
+            if b:
+                qs = qs.filter(profile__branch_id=b.id)
+
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
+    return render(request, 'tracker/users_list.html', { 'users': qs[:100], 'q': q, 'branches': branches, 'selected_branch': branch_param })
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)

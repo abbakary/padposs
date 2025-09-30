@@ -20,6 +20,14 @@
                   <li class="breadcrumb-item active">{{ order.order_number }}</li>
                 </ol>
               </nav>
+              {% if order.status == 'completed' %}
+              <div class="alert alert-success d-inline-flex align-items-center mt-3 mb-0" role="alert">
+                <i class="fa fa-check-circle me-2"></i>
+                <div>
+                  Order completed{% if order.signed_by %} and signed by <strong>{{ order.signed_by.get_full_name|default:order.signed_by.username }}</strong>{% endif %}{% if order.completion_date %} on <strong>{{ order.completion_date|date_medium }}</strong>{% endif %}.
+                </div>
+              </div>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -27,6 +35,45 @@
     </div>
   </div>
 
+{% if order.type == 'inquiry' %}
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0"><i class="fa fa-question-circle me-2"></i>Inquiry Details</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <small class="text-muted">Inquiry Type</small>
+              <div class="fw-medium">{{ order.inquiry_type|default:'-' }}</div>
+            </div>
+            <div class="col-md-6">
+              <small class="text-muted">Contact Preference</small>
+              <div class="fw-medium">{{ order.contact_preference|default:'-' }}</div>
+            </div>
+            <div class="col-12">
+              <small class="text-muted">Questions / Details</small>
+              <div class="p-3 border rounded bg-light">{{ order.questions|default:'No details provided' }}</div>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted">Created</small>
+              <div class="fw-medium">{{ order.created_at|localtime|date_medium }}</div>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted">Status</small>
+              <div class="fw-medium">{{ order.get_status_display }}</div>
+            </div>
+            <div class="col-md-4 text-end">
+              <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success btn-sm"><i class="fa fa-edit me-1"></i>Edit</a>
+              <form method="post" action="{% url 'tracker:order_delete' pk=order.id %}" style="display:inline-block;" onsubmit="return confirm('Delete this inquiry?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm ms-1" type="submit"><i class="fa fa-trash me-1"></i>Delete</button></form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% else %}
   <div class="row">
     <div class="col-lg-8">
       <!-- Time Tracking -->
@@ -134,6 +181,65 @@
                 <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.description|default:"No description provided" }}</div>
               </div>
             </div>
+
+            {# Vehicle details - show for any order that has a vehicle attached #}
+            {% if order.vehicle %}
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Vehicle</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">
+                  <div class="fw-medium">{{ order.vehicle.plate_number }}</div>
+                  <div class="small text-muted">{{ order.vehicle.make }} {{ order.vehicle.model }} {% if order.vehicle.vehicle_type %}• {{ order.vehicle.vehicle_type }}{% endif %}</div>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {# Inquiry specific fields #}
+            {% if order.type == 'inquiry' %}
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Inquiry Type</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.inquiry_type|default:"-" }}</div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Questions / Details</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.questions|default:"No further details provided" }}</div>
+              </div>
+            </div>
+            {% endif %}
+
+            {# Sales specific fields #}
+            {% if order.type == 'sales' %}
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Item</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.item_name|default:"-" }}</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Brand</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.brand|default:"-" }}</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Quantity</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.quantity|default:"-" }}</div>
+              </div>
+            </div>
+            {% if order.tire_type %}
+            <div class="col-12">
+              <div class="mb-3">
+                <label class="form-label fw-medium text-muted">Tire Type</label>
+                <div class="p-3 border rounded" style="background-color: #f8f9fa;">{{ order.tire_type }}</div>
+              </div>
+            </div>
+            {% endif %}
+            {% endif %}
             {% if order.notes %}
             <div class="col-12">
               <div class="mb-3">
@@ -165,9 +271,11 @@
     <div class="mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <small class="text-muted">Other Attachments</small>
+        {% if order.type != 'inquiry' %}
         <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#attachmentModal">
           <i class="fa fa-plus me-1"></i>Add
         </button>
+        {% endif %}
       </div>
       <div class="row g-2">
         {% for att in order.attachments.all %}
@@ -379,9 +487,15 @@
                   <button type="button" class="btn btn-outline-secondary btn-sm" id="clearSignatureBtn" style="display: none;"><i class="fa fa-eraser me-1"></i>Clear Signature</button>
                   <button type="button" class="btn btn-success btn-sm" id="signAndCompleteBtn" style="display: none;"><i class="fa fa-check me-1"></i>Sign & Complete</button>
                 </div>
-                <div class="alert alert-info mt-3 mb-0">
+                <div class="alert alert-info mt-3 mb-2">
                   <i class="fa fa-pen me-1"></i>
-                  Sign on the canvas using mouse, touch, or an external USB pad that emulates a pen/mouse.
+                  Sign on the canvas using mouse, touch, or a USB signature pad that behaves like a pen/mouse.
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="connectUsbPadBtn">
+                    <i class="fa fa-usb me-1"></i>Connect USB Signature Pad
+                  </button>
+                  <span class="small text-muted" id="usbPadStatus">If your pad acts like a mouse/pen, you can sign without connecting.</span>
                 </div>
               </div>
             </div>
@@ -436,6 +550,7 @@
           <h6 class="mb-0"><i class="fa fa-check-circle me-2 text-success"></i>Finalize</h6>
         </div>
         <div class="card-body d-flex flex-wrap gap-2">
+          {% if order.type != 'inquiry' %}
           <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#attachmentModal">
             <i class="fa fa-paperclip me-1"></i>Add Attachments
           </button>
@@ -445,6 +560,7 @@
           <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
             <i class="fa fa-times me-1"></i>Cancel Order
           </button>
+          {% endif %}
         </div>
       </div>
 
@@ -490,6 +606,41 @@
               {% endif %}
             </div>
           </div>
+
+          {# Summary extra lines: show vehicle, short description and key fields depending on type #}
+          <hr>
+          <div class="mb-2 small text-muted">Summary</div>
+          {% if order.vehicle %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Vehicle</div>
+            <div class="fw-medium text-end">{{ order.vehicle.plate_number }}{% if order.vehicle.make or order.vehicle.model %} <small class="text-muted">• {{ order.vehicle.make }} {{ order.vehicle.model }}</small>{% endif %}</div>
+          </div>
+          {% endif %}
+          {% if order.type == 'sales' and order.item_name %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Item</div>
+            <div class="fw-medium text-end">{{ order.item_name }}{% if order.brand %} • {{ order.brand }}{% endif %}</div>
+          </div>
+          {% endif %}
+          {% if order.type == 'inquiry' %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Inquiry Type</div>
+            <div class="fw-medium text-end">{{ order.inquiry_type|default:'-' }}</div>
+          </div>
+          {% if order.questions %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Questions</div>
+            <div class="text-end" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ order.questions }}</div>
+          </div>
+          {% endif %}
+          {% endif %}
+          {% if order.description %}
+          <div class="mb-2 d-flex justify-content-between">
+            <div class="text-muted">Description</div>
+            <div class="text-end" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ order.description }}</div>
+          </div>
+          {% endif %}
+
         </div>
       </div>
       <!-- Quick Actions -->
@@ -598,6 +749,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <style>
 .time-tracking-card .time-tracking-overview {
@@ -1369,12 +1521,42 @@
     }
   }
 
+  // Optional WebHID: allow connecting generic digitizer devices
+  function initializeUsbPad(){
+    const btn = document.getElementById('connectUsbPadBtn');
+    const status = document.getElementById('usbPadStatus');
+    if (!btn || !status) return;
+    if (!('hid' in navigator)) {
+      btn.style.display = 'none';
+      status.textContent = 'USB pads that act like a mouse/pen already work. WebHID not supported.';
+      return;
+    }
+    btn.addEventListener('click', async function(){
+      status.classList.remove('text-success','text-danger');
+      status.textContent = 'Requesting device permission...';
+      try {
+        const filters = [{ usagePage: 0x0D }];
+        const devices = await navigator.hid.requestDevice({ filters });
+        if (devices && devices.length) {
+          status.textContent = 'Device connected. Start signing on the canvas.';
+          status.classList.add('text-success');
+        } else {
+          status.textContent = 'No device selected.';
+        }
+      } catch (err) {
+        status.textContent = 'Could not connect to device.';
+        status.classList.add('text-danger');
+      }
+    });
+  }
+
   // Initialize everything when DOM is loaded
   document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded - initializing components');
     initializeFormToggles();
     initializePdfEmbeds();
     initializeSignaturePad();
+    initializeUsbPad();
     updateTimeTrackingDisplay();
     
     // Set up auto-refresh for time tracking

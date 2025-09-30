@@ -175,6 +175,8 @@ class Order(models.Model):
     signature_file = models.ImageField(upload_to='order_signatures/', blank=True, null=True)
     completion_attachment = models.FileField(upload_to='order_attachments/', blank=True, null=True)
     signed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders_signed')
+    signed_at = models.DateTimeField(blank=True, null=True)
+    # completion_date is kept for historical compatibility; completed_at is canonical timestamp used across views
 
     # Additional fields used across the app
     completion_date = models.DateTimeField(blank=True, null=True)
@@ -197,6 +199,22 @@ class Order(models.Model):
             models.Index(fields=["type"], name="idx_order_type"),
             models.Index(fields=["created_at"], name="idx_order_created"),
         ]
+
+    def save(self, *args, **kwargs):
+        """Ensure inquiries are treated as immediately completed and excluded from normal status lifecycles.
+        This centralizes the behavior so all creation paths don't need to repeat logic.
+        """
+        # If this is an inquiry, make it completed and set completed timestamps
+        if self.type == 'inquiry':
+            now = timezone.now()
+            # Preserve any explicit completed_at if already provided, otherwise set
+            if not self.completed_at:
+                self.completed_at = now
+            if not self.completion_date:
+                self.completion_date = now
+            # Force status to completed
+            self.status = 'completed'
+        super().save(*args, **kwargs)
 
 
 class OrderAttachment(models.Model):

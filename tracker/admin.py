@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib import admin
 from .models import Customer, Vehicle, Order, InventoryItem, Branch
 
 @admin.register(Customer)
@@ -6,6 +7,7 @@ class CustomerAdmin(admin.ModelAdmin):
     list_display = ("code", "full_name", "phone", "customer_type", "total_visits", "last_visit", "branch")
     search_fields = ("code", "full_name", "phone", "email")
     list_filter = ("customer_type", "current_status", "branch")
+    autocomplete_fields = ('branch',)
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
@@ -18,6 +20,7 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ("order_number", "customer__full_name")
     list_filter = ("type", "status", "priority", "signed_by", "completed_at", "cancelled_at", "branch")
     readonly_fields = ("order_number", "created_at", "started_at", "completed_at", "cancelled_at", "signed_at")
+    autocomplete_fields = ('branch',)
 
     def get_fieldsets(self, request, obj=None):
         fieldsets = (
@@ -148,3 +151,14 @@ class BranchAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "region", "is_active", "created_at")
     search_fields = ("name", "code", "region")
     list_filter = ("region", "is_active")
+
+    def get_search_results(self, request, queryset, search_term):
+        """Prioritize exact (case-insensitive) name matches for admin autocomplete.
+        If the user types the full exact branch name, return that branch as the primary result.
+        Otherwise fall back to default behaviour which uses icontains.
+        """
+        if search_term:
+            exact_qs = queryset.filter(name__iexact=search_term)
+            if exact_qs.exists():
+                return exact_qs, False
+        return super().get_search_results(request, queryset, search_term)
