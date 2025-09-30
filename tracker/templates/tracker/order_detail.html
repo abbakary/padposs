@@ -35,6 +35,45 @@
     </div>
   </div>
 
+{% if order.type == 'inquiry' %}
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0"><i class="fa fa-question-circle me-2"></i>Inquiry Details</h6>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <small class="text-muted">Inquiry Type</small>
+              <div class="fw-medium">{{ order.inquiry_type|default:'-' }}</div>
+            </div>
+            <div class="col-md-6">
+              <small class="text-muted">Contact Preference</small>
+              <div class="fw-medium">{{ order.contact_preference|default:'-' }}</div>
+            </div>
+            <div class="col-12">
+              <small class="text-muted">Questions / Details</small>
+              <div class="p-3 border rounded bg-light">{{ order.questions|default:'No details provided' }}</div>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted">Created</small>
+              <div class="fw-medium">{{ order.created_at|localtime|date_medium }}</div>
+            </div>
+            <div class="col-md-4">
+              <small class="text-muted">Status</small>
+              <div class="fw-medium">{{ order.get_status_display }}</div>
+            </div>
+            <div class="col-md-4 text-end">
+              <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success btn-sm"><i class="fa fa-edit me-1"></i>Edit</a>
+              <form method="post" action="{% url 'tracker:order_delete' pk=order.id %}" style="display:inline-block;" onsubmit="return confirm('Delete this inquiry?');">{% csrf_token %}<button class="btn btn-outline-danger btn-sm ms-1" type="submit"><i class="fa fa-trash me-1"></i>Delete</button></form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% else %}
   <div class="row">
     <div class="col-lg-8">
       <!-- Time Tracking -->
@@ -710,6 +749,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <style>
 .time-tracking-card .time-tracking-overview {
