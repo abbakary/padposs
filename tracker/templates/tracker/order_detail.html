@@ -168,12 +168,12 @@
           {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
             {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
               <!-- Image display with signature overlay -->
-              <img src="{{ url }}" alt="Signed Document" class="w-100 h-100" style="object-fit:contain;">
+              <img src="{{ url }}" alt="Signed Document" class="position-absolute top-0 start-0 w-100 h-100" style="object-fit:contain;">
               <img src="{{ order.signature_file.url }}" alt="Signature Overlay" class="position-absolute" style="right:12px; bottom:12px; max-width:35%; opacity:.95; z-index: 2;">
             {% elif fname and '.pdf' in fname %}
-              <!-- PDF display with signature overlay - FIXED -->
+              <!-- PDF display with signature overlay - resilient to cross-origin -->
               <div class="w-100 h-100 position-relative">
-                <iframe src="{{ url }}#toolbar=0&navpanes=0" title="PDF preview" class="w-100 h-100" style="border:0;"></iframe>
+                <div class="pdf-embed-host w-100 h-100" data-pdf-url="{{ url }}"></div>
                 <img src="{{ order.signature_file.url }}" alt="Signature Overlay" class="position-absolute" style="right:12px; bottom:12px; max-width:35%; opacity:.95; z-index: 2; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
               </div>
             {% else %}
@@ -229,9 +229,8 @@
               <img src="{{ url }}" alt="Attachment" class="img-fluid rounded shadow-sm" style="max-height: 220px;">
             {% elif fname and '.pdf' in fname %}
               <div class="ratio ratio-4x3 mb-2">
-                <iframe src="{{ url }}#toolbar=0&navpanes=0" title="PDF preview" style="border:0;border-radius:.5rem;"></iframe>
+                <div class="pdf-embed-host w-100 h-100" data-pdf-url="{{ url }}" style="border-radius:.5rem; overflow:hidden;"></div>
               </div>
-              <a href="{{ url }}" target="_blank" class="btn btn-outline-success btn-sm"><i class="fa fa-external-link me-1"></i>Open PDF</a>
             {% elif fname and '.mp4' in fname or fname and '.webm' in fname or fname and '.ogg' in fname %}
               <video controls class="w-100 rounded shadow-sm mb-2" style="max-height:240px;">
                 <source src="{{ url }}">
@@ -379,27 +378,37 @@
         </div>
       </div>
       <!-- Quick Actions -->
-      <div class="card shadow-sm mb-4">
+      <div class="card shadow-sm mb-4 position-sticky" style="top: 1rem; z-index: 1010;">
         <div class="card-header bg-light">
           <h6 class="mb-0"><i class="fa fa-bolt me-2"></i>Quick Actions</h6>
         </div>
         <div class="card-body">
-          <div class="d-grid gap-2">
-            <a href="{% url 'tracker:orders_list' %}" class="btn btn-outline-primary">
-              <i class="fa fa-arrow-left me-2"></i>Back to Orders
-            </a>
-            <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success">
-              <i class="fa fa-edit me-2"></i>Edit Order
-            </a>
+          <div class="row g-2">
+            <div class="col-6">
+              <a href="{% url 'tracker:orders_list' %}" class="btn btn-outline-primary w-100">
+                <i class="fa fa-arrow-left me-2"></i>Back
+              </a>
+            </div>
+            <div class="col-6">
+              <a href="{% url 'tracker:order_edit' pk=order.id %}" class="btn btn-outline-success w-100">
+                <i class="fa fa-edit me-2"></i>Edit
+              </a>
+            </div>
             {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
-            <button id="showCompleteBtn" type="button" class="btn btn-success"><i class="fa fa-check me-2"></i>Complete Order</button>
-            <button id="showCancelBtn" type="button" class="btn btn-outline-danger"><i class="fa fa-times me-2"></i>Cancel Order</button>
+            <div class="col-6">
+              <button id="showCompleteBtn" type="button" class="btn btn-success w-100"><i class="fa fa-check me-2"></i>Complete</button>
+            </div>
+            <div class="col-6">
+              <button id="showCancelBtn" type="button" class="btn btn-outline-danger w-100"><i class="fa fa-times me-2"></i>Cancel</button>
+            </div>
             {% endif %}
-            <form method="post" action="{% url 'tracker:order_delete' pk=order.id %}" onsubmit="return confirm('Delete this order?');">
-              {% csrf_token %}
-              <input type="hidden" name="next" value="{% url 'tracker:orders_list' %}">
-              <button type="submit" class="btn btn-outline-danger"><i class="fa fa-trash me-2"></i>Delete Order</button>
-            </form>
+            <div class="col-12">
+              <form method="post" action="{% url 'tracker:order_delete' pk=order.id %}" onsubmit="return confirm('Delete this order?');">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'tracker:orders_list' %}">
+                <button type="submit" class="btn btn-outline-danger w-100"><i class="fa fa-trash me-2"></i>Delete</button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -651,6 +660,33 @@
     if(hideCancelBtn){ 
       hideCancelBtn.addEventListener('click', ()=> hide('cancelFormCard')); 
     }
+  }
+
+  // PDF embedding with graceful fallback
+  function initializePdfEmbeds(){
+    var hosts = document.querySelectorAll('.pdf-embed-host');
+    hosts.forEach(function(host){
+      var url = host.getAttribute('data-pdf-url') || '';
+      if(!url) return;
+      try{
+        var a = document.createElement('a');
+        a.href = url;
+        var sameOrigin = (a.origin && a.origin === window.location.origin) || url.indexOf('/')===0;
+        if(sameOrigin){
+          var iframe = document.createElement('iframe');
+          iframe.src = url + (url.indexOf('#')>-1 ? '' : '#') + 'toolbar=0&navpanes=0';
+          iframe.title = 'PDF preview';
+          iframe.className = 'w-100 h-100';
+          iframe.style.border = '0';
+          host.innerHTML = '';
+          host.appendChild(iframe);
+        } else {
+          host.innerHTML = '<div class="d-flex w-100 h-100 align-items-center justify-content-center text-center text-muted p-3"><div><i class="fa fa-file-pdf-o fa-2x mb-2"></i><div>Preview unavailable</div><a class="btn btn-outline-primary btn-sm mt-2" target="_blank" rel="noopener" href="'+url+'"><i class="fa fa-external-link me-1"></i>Open PDF</a></div></div>';
+        }
+      } catch (e) {
+        host.innerHTML = '<div class="d-flex w-100 h-100 align-items-center justify-content-center text-center text-muted p-3"><div><i class="fa fa-file-pdf-o fa-2x mb-2"></i><div>Preview unavailable</div></div></div>';
+      }
+    });
   }
 
   // Simple and reliable signature functionality
@@ -931,45 +967,32 @@
       
       console.log('Setting up sign button...');
       
-      // Simple click handler without cloning
+      // Submit via AJAX to save first, then reload to display saved files
       signBtn.onclick = function(e) {
         e.preventDefault();
-        console.log('Sign & Complete clicked');
-        
-        // Validate file is selected
-        if (!attInput || !attInput.files || !attInput.files[0]) {
-          alert('Please upload a document or image first.');
-          return;
-        }
-        
-        // Validate signature is drawn
-        if (!hasSignature) {
-          alert('Please draw your signature on the document.');
-          return;
-        }
-        
+        if (!attInput || !attInput.files || !attInput.files[0]) { alert('Please upload a document or image first.'); return; }
+        if (!hasSignature) { alert('Please draw your signature on the document.'); return; }
         try {
           const signatureDataUrl = currentCanvas.toDataURL('image/png');
-          console.log('Signature captured');
-          
-          if (sigDataInput) {
-            sigDataInput.value = signatureDataUrl;
-          }
-          
-          // Show loading state
+          if (sigDataInput) sigDataInput.value = signatureDataUrl;
           const originalHTML = this.innerHTML;
           this.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i>Processing...';
           this.disabled = true;
-          
-          // Clean up file URL before submitting
           cleanupFileUrl();
-          
-          console.log('Submitting form...');
-          // Submit the form
-          setTimeout(() => {
-            form.submit();
-          }, 100);
-          
+          const fd = new FormData(form);
+          fetch(form.action, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+            .then(async (r) => {
+              if (!r.ok) throw new Error('Request failed');
+              const ct = r.headers.get('content-type') || '';
+              if (ct.includes('application/json')) {
+                const data = await r.json().catch(() => ({}));
+                if (data && data.success !== false) { window.location.reload(); return; }
+              }
+              // Non-JSON response (likely redirect HTML) -> treat as success and reload
+              window.location.reload();
+            })
+            .catch(() => { form.submit(); })
+            .finally(() => { this.innerHTML = originalHTML; this.disabled = false; });
         } catch (error) {
           console.error('Error capturing signature:', error);
           alert('Could not capture signature. Please try again.');
@@ -1223,6 +1246,7 @@
   document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded - initializing components');
     initializeFormToggles();
+    initializePdfEmbeds();
     initializeSignaturePad();
     updateTimeTrackingDisplay();
     
