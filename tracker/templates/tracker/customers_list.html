@@ -71,7 +71,8 @@
                   </button>
                 </div>
                 <div class="collapse" id="branchFilter">
-                  <input type="number" name="branch" value="{{ request.GET.branch }}" class="form-control" placeholder="Branch ID">
+                  <input type="text" name="branch" value="{{ request.GET.branch }}" class="form-control" placeholder="Branch name" list="branchesList">
+                  {% include 'tracker/partials/branch_datalist.html' %}
                   <small class="text-muted">Admin only filter</small>
                 </div>
               </div>
