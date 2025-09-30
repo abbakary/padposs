@@ -1847,7 +1847,8 @@ def customer_groups(request: HttpRequest):
 @login_required
 def customer_groups_advanced(request: HttpRequest):
     """Advanced customer groups page with AJAX functionality"""
-    return render(request, 'tracker/customer_groups_advanced.html')
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
+    return render(request, 'tracker/customer_groups_advanced.html', {'branches': branches})
 
 
 @login_required
