@@ -2513,6 +2513,9 @@ def add_order_attachments(request: HttpRequest, pk: int):
     o = get_object_or_404(Order, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
+    if o.type == 'inquiry':
+        messages.error(request, 'Cannot add attachments to inquiry orders.')
+        return redirect('tracker:order_detail', pk=o.id)
     files = request.FILES.getlist('attachments')
     added = 0
     skipped = 0
