@@ -3862,14 +3862,22 @@ def organization_export(request: HttpRequest):
 @user_passes_test(lambda u: u.is_superuser or u.is_staff)
 def users_list(request: HttpRequest):
     q = request.GET.get('q','').strip()
-    branch_id = (request.GET.get('branch') or '').strip()
+    branch_param = (request.GET.get('branch') or '').strip()
     qs = User.objects.all().order_by('-date_joined')
     if q:
         qs = qs.filter(Q(username__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(email__icontains=q))
-    if branch_id.isdigit():
-        qs = qs.filter(profile__branch_id=int(branch_id))
-    branches = Branch.objects.filter(is_active=True).order_by('name')
-    return render(request, 'tracker/users_list.html', { 'users': qs[:100], 'q': q, 'branches': branches, 'selected_branch': branch_id })
+
+    # Support branch param as either numeric id or branch name (exact match)
+    if branch_param:
+        if branch_param.isdigit():
+            qs = qs.filter(profile__branch_id=int(branch_param))
+        else:
+            b = Branch.objects.filter(name__iexact=branch_param).first()
+            if b:
+                qs = qs.filter(profile__branch_id=b.id)
+
+    branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
+    return render(request, 'tracker/users_list.html', { 'users': qs[:100], 'q': q, 'branches': branches, 'selected_branch': branch_param })
 
 @login_required
 @user_passes_test(lambda u: u.is_superuser)
