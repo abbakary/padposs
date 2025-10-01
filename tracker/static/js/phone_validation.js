@@ -99,9 +99,8 @@
       e.preventDefault();
       var paste = (e.clipboardData||window.clipboardData).getData('text')||'';
       paste = paste.replace(/[^\d+\s]/g,'');
-      if(paste.startsWith('+255')) paste = paste.substring(0,16);
-      else if(paste.startsWith('0')) paste = paste.substring(0,14);
-      else paste = paste.substring(0,16);
+      if(paste.startsWith('0')) paste = '+255 ' + paste.slice(1);
+      if(paste.startsWith('+255')) paste = paste.substring(0,16); else paste = paste.substring(0,14);
       input.value = paste; onInput({target: input});
     });
   }
