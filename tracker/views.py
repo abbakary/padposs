@@ -932,31 +932,31 @@ def customer_register(request: HttpRequest):
                         stored_phone = re.sub(r'\D', '', str(customer.phone or ''))
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
                             if normalized_phone in stored_phone or stored_phone in normalized_phone:
-                                if is_ajax:
-                                    from .utils import get_user_branch
-                                    user_branch = get_user_branch(request.user)
-                                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
-                                    if can_access:
-                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                    else:
-                                        dup_url = reverse('tracker:request_customer_access', kwargs={'pk': customer.id})
-                                    return json_response(
-                                        False,
-                                        form=form,
-                                        message=f"Customer '{customer.full_name}' already exists. Redirected to their profile.",
-                                        message_type='info',
-                                        redirect_url=dup_url
-                                    )
-                                messages.info(request, f"Customer '{customer.full_name}' already exists. Redirected to their profile.")
                                 from .utils import get_user_branch
                                 user_branch = get_user_branch(request.user)
                                 can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
+                                if is_ajax:
+                                    if can_access:
+                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                        return json_response(
+                                            False,
+                                            form=form,
+                                            message=f"Customer '{customer.full_name}' already exists. Redirected to their profile.",
+                                            message_type='info',
+                                            redirect_url=dup_url
+                                        )
+                                    else:
+                                        dup_cross_branch = True
+                                        messages.info(request, f"A customer with similar details exists in another branch: {customer.full_name} ({customer.phone}). A separate customer will be created for your branch.")
+                                        break
+                                messages.info(request, f"Customer '{customer.full_name}' already exists. Redirected to their profile.")
                                 if can_access:
                                     detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
                                     return redirect(detail_url)
                                 else:
-                                    messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                                    return redirect('tracker:customers_list')
+                                    dup_cross_branch = True
+                                    messages.info(request, 'A customer with similar details exists in another branch. A separate record will be created for your branch.')
+                                    break
                 except Exception:
                     pass
 
