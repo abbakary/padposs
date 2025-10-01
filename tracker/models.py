@@ -200,10 +200,24 @@ class Order(models.Model):
             models.Index(fields=["created_at"], name="idx_order_created"),
         ]
 
+    def _generate_order_number(self) -> str:
+        """Generate a unique human-friendly order number."""
+        from uuid import uuid4
+
+        prefix = 'ORD'
+        base = timezone.now().strftime('%Y%m%d%H%M%S')
+        # Retry until unique to avoid collision under concurrent requests
+        for _ in range(5):
+            candidate = f"{prefix}{base}{uuid4().hex[:4].upper()}"
+            if not Order.objects.filter(order_number=candidate).exists():
+                return candidate
+        # Fallback to full UUID if repeated collisions occur
+        return f"{prefix}{uuid4().hex.upper()}"
+
     def save(self, *args, **kwargs):
-        """Ensure inquiries are treated as immediately completed and excluded from normal status lifecycles.
-        This centralizes the behavior so all creation paths don't need to repeat logic.
-        """
+        """Ensure order numbers exist and inquiries auto-complete."""
+        if not self.order_number:
+            self.order_number = self._generate_order_number()
         # If this is an inquiry, make it completed and set completed timestamps
         if self.type == 'inquiry':
             now = timezone.now()
@@ -237,7 +251,7 @@ class OrderAttachment(models.Model):
         ordering = ['-uploaded_at']
         indexes = [
             models.Index(fields=['order'], name='idx_order_attachment_order'),
-            models.Index(fields=['uploaded_at'], name='idx_order_attachment_uploaded_at'),
+            models.Index(fields=['uploaded_at'], name='idx_order_att_uploaded_at'),
         ]
 
 
@@ -333,7 +347,12 @@ class Profile(models.Model):
 
 
 class CustomerNote(models.Model):
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='notes')
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.CASCADE,
+        related_name='note_entries',
+        related_query_name='note_entry',
+    )
     content = models.TextField()
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='customer_notes')
     created_at = models.DateTimeField(auto_now_add=True)
