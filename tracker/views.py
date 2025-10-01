@@ -3868,14 +3868,18 @@ def users_list(request: HttpRequest):
     if q:
         qs = qs.filter(Q(username__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(email__icontains=q))
 
-    # Support branch param as either numeric id or branch name (exact match)
-    if branch_param:
-        if branch_param.isdigit():
-            qs = qs.filter(profile__branch_id=int(branch_param))
-        else:
-            b = Branch.objects.filter(name__iexact=branch_param).first()
-            if b:
-                qs = qs.filter(profile__branch_id=b.id)
+    # Superusers can filter across branches, staff are restricted to their assigned branch
+    if request.user.is_superuser:
+        if branch_param:
+            if branch_param.isdigit():
+                qs = qs.filter(profile__branch_id=int(branch_param))
+            else:
+                b = Branch.objects.filter(name__iexact=branch_param).first()
+                if b:
+                    qs = qs.filter(profile__branch_id=b.id)
+    else:
+        b = getattr(getattr(request.user, 'profile', None), 'branch', None)
+        qs = qs.filter(profile__branch=b) if b else qs.none()
 
     branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     return render(request, 'tracker/users_list.html', { 'users': qs[:100], 'q': q, 'branches': branches, 'selected_branch': branch_param })
