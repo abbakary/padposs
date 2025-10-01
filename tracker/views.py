@@ -1381,7 +1381,8 @@ def start_order(request: HttpRequest):
 def create_order_for_customer(request: HttpRequest, pk: int):
     """Create a new order for a specific customer"""
     from .utils import adjust_inventory
-    c = get_object_or_404(Customer, pk=pk)
+    customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
+    c = get_object_or_404(customers_qs, pk=pk)
     if request.method == "POST":
         form = OrderForm(request.POST)
         # Ensure vehicle belongs to this customer
