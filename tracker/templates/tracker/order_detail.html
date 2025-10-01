@@ -306,7 +306,7 @@
         <div class="attachment-item p-2">
           <div class="attachment-thumb border rounded p-2 d-flex flex-column h-100">
             {% with fname=att.file.name|lower url=att.file.url %}
-              {% if ('.jpg' in fname) or ('.jpeg' in fname) or ('.png' in fname) or ('.gif' in fname) or ('.webp' in fname) %}
+              {% if '.jpg' in fname or '.jpeg' in fname or '.png' in fname or '.gif' in fname or '.webp' in fname %}
                 <a href="{{ url }}" target="_blank" class="d-block mb-2 thumb-link"><img src="{{ url }}" alt="Attachment" class="img-fluid rounded thumb-img"></a>
               {% elif '.pdf' in fname %}
                 <div class="file-icon text-center mb-2"><i class="fa fa-file-pdf-o fa-2x text-danger"></i></div>
@@ -326,7 +326,7 @@
         <div class="attachment-item p-2">
           <div class="attachment-thumb border rounded p-2 d-flex flex-column h-100">
             {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
-              {% if ('.jpg' in fname) or ('.jpeg' in fname) or ('.png' in fname) or ('.gif' in fname) or ('.webp' in fname) %}
+              {% if '.jpg' in fname or '.jpeg' in fname or '.png' in fname or '.gif' in fname or '.webp' in fname %}
                 <a href="{{ url }}" target="_blank" class="d-block mb-2 thumb-link"><img src="{{ url }}" alt="Completion Attachment" class="img-fluid rounded thumb-img"></a>
               {% elif '.pdf' in fname %}
                 <div class="file-icon text-center mb-2"><i class="fa fa-file-pdf-o fa-2x text-danger"></i></div>
@@ -378,7 +378,7 @@
     <div class="mb-3">
       <div class="signed-doc-wrapper border rounded overflow-hidden w-100">
         {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
-          {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
+          {% if '.jpg' in fname or '.jpeg' in fname or '.png' in fname or '.gif' in fname or '.webp' in fname %}
             <div class="position-relative w-100 h-100">
               <img src="{{ url }}" alt="Signed Document" class="w-100 h-auto completion-attachment-img" style="display:block; object-fit:contain;">
               <img src="{{ order.signature_file.url }}" alt="Signature Overlay" class="signature-overlay img-fluid">
@@ -441,7 +441,7 @@
           <small class="text-muted d-block mb-2">Completion Attachment</small>
           {% if order.completion_attachment %}
           {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
-            {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
+            {% if '.jpg' in fname or '.jpeg' in fname or '.png' in fname or '.gif' in fname or '.webp' in fname %}
               <img src="{{ url }}" alt="Attachment" class="img-fluid rounded shadow-sm" style="max-height: 220px; width:100%; object-fit:contain;">
             {% elif fname and '.pdf' in fname %}
               <div class="ratio ratio-4x3 mb-2">
