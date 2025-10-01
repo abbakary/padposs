@@ -887,7 +887,7 @@ def customer_register(request: HttpRequest):
                                     return redirect(detail_url)
                                 else:
                                     messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                                    return redirect('tracker:request_customer_access', pk=customer.id)
+                                    return redirect('tracker:customers_list')
                     
                         # If quick save, create the customer immediately
                         from .utils import get_user_branch
@@ -954,7 +954,7 @@ def customer_register(request: HttpRequest):
                                     return redirect(detail_url)
                                 else:
                                     messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                                    return redirect('tracker:request_customer_access', pk=customer.id)
+                                    return redirect('tracker:customers_list')
                 except Exception:
                     pass
 
@@ -3327,7 +3327,7 @@ def customer_delete(request: HttpRequest, pk: int):
         # Delete the customer (this will cascade to related objects)
         customer.delete()
         messages.success(request, f'Customer {customer.full_name} has been deleted.')
-        return redirect('tracker:request_customer_access', pk=customer.id)
+        return redirect('tracker:customers_list')
     
     # If not a POST request, redirect to customer detail
     return redirect('tracker:customer_detail', pk=customer.id)
