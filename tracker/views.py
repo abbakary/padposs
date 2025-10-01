@@ -887,7 +887,7 @@ def customer_register(request: HttpRequest):
                                     return redirect(detail_url)
                                 else:
                                     messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                                    return redirect('tracker:customers_list')
+                                    return redirect('tracker:request_customer_access', pk=customer.id)
                     
                         # If quick save, create the customer immediately
                         from .utils import get_user_branch
@@ -954,7 +954,7 @@ def customer_register(request: HttpRequest):
                                     return redirect(detail_url)
                                 else:
                                     messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                                    return redirect('tracker:customers_list')
+                                    return redirect('tracker:request_customer_access', pk=customer.id)
                 except Exception:
                     pass
 
@@ -1104,7 +1104,7 @@ def customer_register(request: HttpRequest):
                         return redirect(detail_url)
                     else:
                         messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                        return redirect('tracker:customers_list')
+                        return redirect('tracker:request_customer_access', pk=customer.id)
                 
                 # Create new customer if no duplicate found
                 from .utils import get_user_branch
@@ -2387,7 +2387,7 @@ def customer_detail(request: HttpRequest, pk: int):
     except Customer.DoesNotExist:
         # Customer either doesn't exist or is not accessible to this user.
         messages.warning(request, "Customer not found or you don't have permission to view this customer.")
-        return redirect('tracker:customers_list')
+        return redirect('tracker:request_customer_access', pk=customer.id)
 
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
@@ -3275,7 +3275,7 @@ def customer_delete(request: HttpRequest, pk: int):
         # Delete the customer (this will cascade to related objects)
         customer.delete()
         messages.success(request, f'Customer {customer.full_name} has been deleted.')
-        return redirect('tracker:customers_list')
+        return redirect('tracker:request_customer_access', pk=customer.id)
     
     # If not a POST request, redirect to customer detail
     return redirect('tracker:customer_detail', pk=customer.id)
