@@ -2387,7 +2387,7 @@ def customer_detail(request: HttpRequest, pk: int):
     except Customer.DoesNotExist:
         # Customer either doesn't exist or is not accessible to this user.
         messages.warning(request, "Customer not found or you don't have permission to view this customer.")
-        return redirect('tracker:request_customer_access', pk=customer.id)
+        return redirect('tracker:customers_list')
 
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
