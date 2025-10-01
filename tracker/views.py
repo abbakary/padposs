@@ -2345,19 +2345,15 @@ def customer_detail(request: HttpRequest, pk: int):
 
 @login_required
 def order_detail(request: HttpRequest, pk: int):
-    order = get_object_or_404(Order, pk=pk)
+    orders_qs = scope_queryset(Order.objects.all(), request.user, request)
+    order = get_object_or_404(orders_qs, pk=pk)
     # Auto-progress created -> in_progress after 10 minutes
     try:
         order.auto_progress_if_elapsed()
     except Exception:
         pass
-    # Get timezone from cookie or use default
-    tzname = request.COOKIES.get('django_timezone')
-    
     # Prepare context
-    context = {
-        "order": order,
-    }
+    context = {"order": order}
     return render(request, "tracker/order_detail.html", context)
 
 
