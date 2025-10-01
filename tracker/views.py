@@ -2205,9 +2205,12 @@ def orders_list(request: HttpRequest):
         order = Order.objects.create(**order_data)
         # Update customer visit/arrival status for returning tracking
         try:
-            customer.arrival_time = timezone.now()
+            now_ts = timezone.now()
+            customer.arrival_time = now_ts
             customer.current_status = 'arrived'
-            customer.save(update_fields=['arrival_time','current_status'])
+            customer.last_visit = now_ts
+            customer.total_visits = (customer.total_visits or 0) + 1
+            customer.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
         except Exception:
             pass
         remaining = None
