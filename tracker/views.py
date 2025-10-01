@@ -1198,11 +1198,14 @@ def customer_register(request: HttpRequest):
                         description=final_description,
                         estimated_duration=int(estimated_duration) if estimated_duration else None
                     )
-                    
-                    # Update customer status
-                    c.arrival_time = timezone.now()
+
+                    # Update customer status and visit metrics
+                    now_ts = timezone.now()
+                    c.arrival_time = now_ts
                     c.current_status = 'arrived'
-                    c.save(update_fields=['arrival_time','current_status'])
+                    c.last_visit = now_ts
+                    c.total_visits = (c.total_visits or 0) + 1
+                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
                     
                 elif intent == "inquiry":
                     # Get data from step 3 session
