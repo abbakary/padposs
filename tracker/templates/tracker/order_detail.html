@@ -1019,6 +1019,45 @@
       let lastX = 0;
       let lastY = 0;
 
+      function normalizedToCanvas(nx, ny) {
+        if (!canvas) {
+          return { x: 0, y: 0 };
+        }
+        const clampedX = Math.min(Math.max(typeof nx === 'number' ? nx : 0, 0), 1);
+        const clampedY = Math.min(Math.max(typeof ny === 'number' ? ny : 0, 0), 1);
+        return {
+          x: clampedX * canvas.width,
+          y: clampedY * canvas.height
+        };
+      }
+
+      function beginStrokeAt(x, y, options) {
+        drawing = true;
+        lastX = x;
+        lastY = y;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        if (options && options.fromExternal) {
+          showSignatureTools();
+        }
+      }
+
+      function continueStrokeTo(x, y) {
+        if (!drawing) return;
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        drawToPreview(lastX, lastY, x, y);
+        lastX = x;
+        lastY = y;
+        hasSignature = true;
+      }
+
+      function endStroke() {
+        if (!drawing) return;
+        drawing = false;
+        ctx.closePath();
+      }
+
       function scaleToPreview(x, y) {
         if (!previewCanvas) return { x, y, weight: 1 };
         const scaleX = previewCanvas.width / canvas.width;
@@ -1050,12 +1089,15 @@
         let clientX;
         let clientY;
 
-        if (e.touches && e.touches[0]) {
+        if (e && e.touches && e.touches[0]) {
           clientX = e.touches[0].clientX;
           clientY = e.touches[0].clientY;
-        } else {
+        } else if (e) {
           clientX = e.clientX;
           clientY = e.clientY;
+        } else {
+          clientX = rect.left;
+          clientY = rect.top;
         }
 
         return {
@@ -1065,32 +1107,22 @@
       }
 
       function startDrawing(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        drawing = true;
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         const pos = getCanvasPosition(e);
-        lastX = pos.x;
-        lastY = pos.y;
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
+        beginStrokeAt(pos.x, pos.y);
       }
 
       function draw(e) {
         if (!drawing) return;
-        e.preventDefault();
-        e.stopPropagation();
-
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         const pos = getCanvasPosition(e);
-        const startX = lastX;
-        const startY = lastY;
-
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-        drawToPreview(startX, startY, pos.x, pos.y);
-
-        lastX = pos.x;
-        lastY = pos.y;
-        hasSignature = true;
+        continueStrokeTo(pos.x, pos.y);
       }
 
       function stopDrawing(e) {
@@ -1099,8 +1131,7 @@
           e.preventDefault();
           e.stopPropagation();
         }
-        drawing = false;
-        ctx.closePath();
+        endStroke();
       }
 
       const bindings = [
@@ -1122,6 +1153,26 @@
         canvas.removeEventListener(event, handler, true);
         canvas.addEventListener(event, handler, { capture: true, passive: false });
       });
+
+      externalHooks.begin = function(normX, normY) {
+        if (!currentCanvas || currentCanvas !== canvas) return;
+        const coords = normalizedToCanvas(normX, normY);
+        beginStrokeAt(coords.x, coords.y, { fromExternal: true });
+      };
+      externalHooks.move = function(normX, normY) {
+        if (!currentCanvas || currentCanvas !== canvas) return;
+        if (!drawing) {
+          externalHooks.begin(normX, normY);
+          return;
+        }
+        const coords = normalizedToCanvas(normX, normY);
+        continueStrokeTo(coords.x, coords.y);
+      };
+      externalHooks.end = function() {
+        if (!currentCanvas || currentCanvas !== canvas) return;
+        if (!drawing) return;
+        endStroke();
+      };
     }
 
     function showSignatureTools() {
