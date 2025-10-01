@@ -22,6 +22,7 @@ urlpatterns = [
     path("customers/register/", views.customer_register, name="customer_register"),
     path("customers/export/", views.customers_export, name="customers_export"),
     path("customers/<int:pk>/", views.customer_detail, name="customer_detail"),
+    path("customers/<int:pk>/request-access/", views.request_customer_access, name="request_customer_access"),
     path("customers/<int:pk>/edit/", views.customer_edit, name="customer_edit"),
     path("customers/<int:pk>/delete/", views.customer_delete, name="customer_delete"),
     path("customers/<int:pk>/note/", views.add_customer_note, name="add_customer_note"),
