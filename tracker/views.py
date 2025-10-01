@@ -928,6 +928,7 @@ def customer_register(request: HttpRequest):
                     normalized_phone = re.sub(r'\D', '', phone) if phone else ''
                     from .utils import get_user_branch
                     existing_customers = Customer.objects.filter(full_name__iexact=full_name, branch=get_user_branch(request.user))
+                    dup_cross_branch = False
                     for customer in existing_customers:
                         stored_phone = re.sub(r'\D', '', str(customer.phone or ''))
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
