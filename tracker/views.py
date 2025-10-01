@@ -863,31 +863,33 @@ def customer_register(request: HttpRequest):
                         # Check for exact or partial match (at least 6 digits matching)
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
                             if normalized_phone in stored_phone or stored_phone in normalized_phone:
-                                if is_ajax:
-                                    from .utils import get_user_branch
-                                    user_branch = get_user_branch(request.user)
-                                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
-                                    if can_access:
-                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                    else:
-                                        dup_url = reverse('tracker:request_customer_access', kwargs={'pk': customer.id})
-                                    return json_response(
-                                        False,
-                                        form=form,
-                                        message=f'Customer already exists: {customer.full_name} ({customer.phone})',
-                                        message_type='warning',
-                                        redirect_url=dup_url
-                                    )
-                                messages.warning(request, f'Customer already exists: {customer.full_name} ({customer.phone})')
                                 from .utils import get_user_branch
                                 user_branch = get_user_branch(request.user)
                                 can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
+                                if is_ajax:
+                                    if can_access:
+                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                        return json_response(
+                                            False,
+                                            form=form,
+                                            message=f'Customer already exists: {customer.full_name} ({customer.phone})',
+                                            message_type='warning',
+                                            redirect_url=dup_url
+                                        )
+                                    else:
+                                        # Cross-branch duplicate: allow creation in current branch (do not return), but set a message and break out to create
+                                        dup_cross_branch = True
+                                        messages.warning(request, f'Customer exists in another branch: {customer.full_name} ({customer.phone}). A separate customer will be created in your branch.')
+                                        break
+                                # Non-AJAX flow
+                                messages.warning(request, f'Customer already exists: {customer.full_name} ({customer.phone})')
                                 if can_access:
                                     detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
                                     return redirect(detail_url)
                                 else:
-                                    messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
-                                    return redirect('tracker:customers_list')
+                                    dup_cross_branch = True
+                                    messages.info(request, 'A customer with the same details exists in another branch. A separate record will be created for your branch.')
+                                    break
                     
                         # If quick save, create the customer immediately
                         from .utils import get_user_branch
