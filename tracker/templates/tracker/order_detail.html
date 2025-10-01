@@ -359,12 +359,12 @@
     
     <!-- Individual Attachments Display - FIXED -->
     <div class="row g-3">
-      {% if order.signature_file %}
       <div class="col-md-6">
-        <div class="text-center p-3 border rounded">
+        <div class="text-center p-3 border rounded h-100">
           <i class="fa fa-signature text-primary mb-2 d-block"></i>
           <small class="text-muted d-block mb-2">Digital Signature</small>
-          <img src="{{ order.signature_file.url }}" alt="Signature" class="img-fluid rounded shadow-sm" style="max-height: 150px;">
+          {% if order.signature_file %}
+          <img src="{{ order.signature_file.url }}" alt="Signature" class="img-fluid rounded shadow-sm mb-2" style="max-height: 150px;">
           {% if order.signed_by %}
           <div class="mt-2">
             <small class="text-muted">Signed by: {{ order.signed_by.get_full_name|default:order.signed_by.username }}</small>
@@ -373,15 +373,19 @@
             {% endif %}
           </div>
           {% endif %}
+          {% else %}
+          <p class="text-muted mb-3">No signature captured yet. Capture the signature when the customer is ready to leave.</p>
+          <button type="button" class="btn btn-outline-success btn-sm attachment-signature-trigger" data-bs-toggle="modal" data-bs-target="#completeModal">
+            <i class="fa fa-pen me-1"></i>Capture Signature
+          </button>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
-      
-      {% if order.completion_attachment %}
       <div class="col-md-6">
-        <div class="text-center p-3 border rounded">
+        <div class="text-center p-3 border rounded h-100">
           <i class="fa fa-file text-success mb-2 d-block"></i>
           <small class="text-muted d-block mb-2">Completion Attachment</small>
+          {% if order.completion_attachment %}
           {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
             {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
               <img src="{{ url }}" alt="Attachment" class="img-fluid rounded shadow-sm" style="max-height: 220px;">
@@ -415,18 +419,14 @@
               ({{ order.completion_attachment.size|filesizeformat }})
             </div>
           {% endwith %}
+          {% else %}
+          <p class="text-muted mb-3">No completion document uploaded. Use Add Attachments to include supporting files before signing.</p>
+          <button type="button" class="btn btn-outline-primary btn-sm attachments-modal-trigger" data-bs-toggle="modal" data-bs-target="#attachmentModal">
+            <i class="fa fa-paperclip me-1"></i>Add Completion Document
+          </button>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
-      
-      {% if not order.signature_file and not order.completion_attachment %}
-      <div class="col-12">
-        <div class="text-center py-4 text-muted">
-          <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
-          <p class="mb-0">No attachments available</p>
-        </div>
-      </div>
-      {% endif %}
     </div>
   </div>
 </div>
