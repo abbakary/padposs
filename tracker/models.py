@@ -105,7 +105,7 @@ class Customer(models.Model):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["full_name", "phone", "organization_name", "tax_number"],
+                fields=["branch", "full_name", "phone", "organization_name", "tax_number"],
                 name="uniq_customer_identity",
             )
         ]

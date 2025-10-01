@@ -1079,39 +1079,48 @@ def customer_register(request: HttpRequest):
                 full_name = data.get("full_name")
                 phone = data.get("phone")
                 
-                # Check for existing customer
-                existing_customer = Customer.objects.filter(
-                    full_name__iexact=full_name,
-                    phone=phone
-                ).first()
-                
-                if existing_customer:
-                    from .utils import get_user_branch
-                    user_branch = get_user_branch(request.user)
-                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(existing_customer, 'branch_id', None) == user_branch.id)
-                    if can_access:
-                        # If user can access the existing record (same branch or superuser) keep previous behavior and redirect
-                        if is_ajax:
-                            dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
-                            return json_response(
-                                False,
-                                form=form,
-                                message=f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.",
-                                message_type="info",
-                                redirect_url=dup_url
-                            )
-                        messages.info(request, f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.")
-                        detail_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
-                        return redirect(detail_url)
-
-                    # If existing customer belongs to another branch, allow creating a separate customer record in current user's branch
-                    other_branch = getattr(existing_customer, 'branch', None)
-                    branch_name = getattr(other_branch, 'name', other_branch) if other_branch else 'another branch'
-                    messages.warning(request, f"A customer with the same name and phone exists in {branch_name}. A separate customer will be created for your branch.")
-                    # proceed to create a new customer below
-                
-                # Create new customer if no duplicate found
+                # Match DB uniqueness: check same-branch exact duplicate first (branch, full_name, phone, organization_name, tax_number)
                 from .utils import get_user_branch
+                user_branch = get_user_branch(request.user)
+                org_name = data.get("organization_name") or None
+                tax_num = data.get("tax_number") or None
+
+                existing_same_branch = Customer.objects.filter(
+                    branch=user_branch,
+                    full_name__iexact=full_name,
+                    phone=phone,
+                    organization_name=org_name,
+                    tax_number=tax_num,
+                ).first()
+
+                if existing_same_branch:
+                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(existing_same_branch, 'branch_id', None) == user_branch.id)
+                    if is_ajax and can_access:
+                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_same_branch.id}) + "?flash=existing_customer"
+                        return json_response(
+                            False,
+                            form=form,
+                            message=f"Customer '{full_name}' with phone '{phone}' already exists in your branch. Redirected to their profile.",
+                            message_type="info",
+                            redirect_url=dup_url
+                        )
+                    messages.info(request, f"Customer '{full_name}' with phone '{phone}' already exists in your branch. Redirected to their profile.")
+                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': existing_same_branch.id}) + "?flash=existing_customer"
+                    return redirect(detail_url)
+
+                # If exists in another branch with same identity, allow creation but warn
+                existing_other = Customer.objects.filter(
+                    full_name__iexact=full_name,
+                    phone=phone,
+                    organization_name=org_name,
+                    tax_number=tax_num,
+                ).exclude(branch=user_branch).first()
+                if existing_other:
+                    other_branch = getattr(existing_other, 'branch', None)
+                    branch_name = getattr(other_branch, 'name', other_branch) if other_branch else 'another branch'
+                    messages.warning(request, f"A customer with the same identity exists in {branch_name}. A separate customer will be created for your branch.")
+
+                # Create new customer
                 c = Customer.objects.create(
                     full_name=full_name,
                     phone=phone,
@@ -1120,10 +1129,10 @@ def customer_register(request: HttpRequest):
                     address=data.get("address"),
                     notes=data.get("notes") or data.get("additional_notes"),
                     customer_type=data.get("customer_type"),
-                    organization_name=data.get("organization_name"),
-                    tax_number=data.get("tax_number"),
+                    organization_name=org_name,
+                    tax_number=tax_num,
                     personal_subtype=data.get("personal_subtype"),
-                    branch=get_user_branch(request.user)
+                    branch=user_branch,
                 )
                 
                 # Create vehicle if vehicle information is provided
