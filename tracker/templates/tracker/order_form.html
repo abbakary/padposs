@@ -87,7 +87,7 @@
               {{ form.priority }}
               {% if form.priority.errors %}<div class="text-danger f-12">{{ form.priority.errors|striptags }}</div>{% endif %}
             </div>
-            <div class="col-md-4">
+            <div class="col-md-4" id="vehicleFieldGroup">
               <label class="form-label">{{ form.vehicle.label }}</label>
               {{ form.vehicle }}
               {% if form.vehicle.errors %}<div class="text-danger f-12">{{ form.vehicle.errors|striptags }}</div>{% endif %}
