@@ -54,7 +54,7 @@ class CustomerBasicForm(forms.Form):
             'class': 'form-control',
             'placeholder': '+255 XXX XXX XXX or 0X XXX XXX XXX',
             'required': True,
-            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
             'title': 'Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX',
             'maxlength': '16'
         })
@@ -109,7 +109,7 @@ class CustomerStep1Form(forms.Form):
             'class': 'form-control',
             'placeholder': '+255 XXX XXX XXX or 0X XXX XXX XXX',
             'required': True,
-            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
             'title': 'Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX',
             'maxlength': '16'
         })
@@ -120,7 +120,7 @@ class CustomerStep1Form(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '+255 XXX XXX XXX (if different from phone)',
-            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
             'title': 'Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX',
             'maxlength': '16'
         })
@@ -293,14 +293,14 @@ class CustomerEditForm(forms.ModelForm):
             'phone': forms.TextInput(attrs={
                 'class': 'form-control', 
                 'placeholder': '+255 XXX XXX XXX or 0X XXX XXX XXX',
-                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
                 'title': 'Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX',
                 'maxlength': '16'
             }),
             'whatsapp': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '+255 XXX XXX XXX (if different from phone)',
-                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
                 'title': 'Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX',
                 'maxlength': '16'
             }),
