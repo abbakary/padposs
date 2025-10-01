@@ -2863,7 +2863,7 @@ def customers_export(request: HttpRequest):
 def orders_export(request: HttpRequest):
     status = request.GET.get('status','all')
     type_ = request.GET.get('type','all')
-    qs = Order.objects.select_related('customer').order_by('-created_at')
+    qs = scope_queryset(Order.objects.select_related('customer').order_by('-created_at'), request.user, request)
     if status != 'all':
         qs = qs.filter(status=status)
     if type_ != 'all':
