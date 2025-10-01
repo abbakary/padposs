@@ -3269,7 +3269,8 @@ def vehicle_delete(request: HttpRequest, pk: int):
 def api_customer_vehicles(request: HttpRequest, customer_id: int):
     """API endpoint to get vehicles for a specific customer"""
     try:
-        customer = Customer.objects.get(pk=customer_id)
+        customers_qs_av = scope_queryset(Customer.objects.all(), request.user, request)
+        customer = customers_qs_av.get(pk=customer_id)
         vehicles = [{
             'id': v.id,
             'make': v.make or '',
