@@ -4046,10 +4046,8 @@ def customers_quick_create(request: HttpRequest):
             import re
             normalized_phone = re.sub(r'\D', '', phone)
             
-            # Check for existing customers with similar name and phone
-            existing_customers = Customer.objects.filter(
-                full_name__iexact=full_name
-            )
+            # Check for existing customers with similar name and phone (scope to user's accessible customers)
+            existing_customers = scope_queryset(Customer.objects.filter(full_name__iexact=full_name), request.user, request)
             
             # Check each potential match for phone number similarity
             for customer in existing_customers:
@@ -4066,12 +4064,15 @@ def customers_quick_create(request: HttpRequest):
                             'customer_phone': str(customer.phone)
                         })
 
-            # Create customer
+            # Create customer (assign to user's branch if applicable)
+            from .utils import get_user_branch
+            customer_branch = get_user_branch(request.user)
             customer = Customer.objects.create(
                 full_name=full_name,
                 phone=phone,
                 email=email if email else None,
-                customer_type=customer_type
+                customer_type=customer_type,
+                branch=customer_branch
             )
 
             try:
