@@ -188,8 +188,26 @@
               <div class="mb-3">
                 <label class="form-label fw-medium text-muted">Vehicle</label>
                 <div class="p-3 border rounded" style="background-color: #f8f9fa;">
-                  <div class="fw-medium">{{ order.vehicle.plate_number }}</div>
-                  <div class="small text-muted">{{ order.vehicle.make }} {{ order.vehicle.model }} {% if order.vehicle.vehicle_type %}• {{ order.vehicle.vehicle_type }}{% endif %}</div>
+                  <div class="row">
+                    <div class="col-6">
+                      <small class="text-muted">Plate</small>
+                      <div class="fw-medium">{{ order.vehicle.plate_number|default:'-' }}</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Type</small>
+                      <div class="fw-medium">{{ order.vehicle.vehicle_type|default:'-' }}</div>
+                    </div>
+                  </div>
+                  <div class="row mt-2">
+                    <div class="col-6">
+                      <small class="text-muted">Make</small>
+                      <div class="fw-medium">{{ order.vehicle.make|default:'-' }}</div>
+                    </div>
+                    <div class="col-6">
+                      <small class="text-muted">Model</small>
+                      <div class="fw-medium">{{ order.vehicle.model|default:'-' }}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
