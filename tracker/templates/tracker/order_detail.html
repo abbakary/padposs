@@ -885,6 +885,17 @@
 <script>
 (function(){
   var bootstrap = window.bootstrap || (function(){ try { return window['bootstrap']; } catch(e){ return undefined; } })();
+  function showModal(el){
+    if (!el) return;
+    if (bootstrap && typeof bootstrap.Modal === 'function') {
+      new bootstrap.Modal(el).show();
+      return;
+    }
+    el.classList.add('show');
+    el.style.display = 'block';
+    el.removeAttribute('aria-hidden');
+    el.setAttribute('aria-modal', 'true');
+  }
   // Initialize action buttons to trigger modals
   function initializeFormToggles() {
     const completeBtn = document.getElementById('showCompleteBtn');
