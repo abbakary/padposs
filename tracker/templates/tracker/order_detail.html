@@ -1290,27 +1290,6 @@
         if (btn) btn.click();
       });
 
-      var inlineCanvas = document.getElementById('signaturePadInline');
-      var inlineForm = document.getElementById('inlineSignForm');
-      var inlineHidden = document.getElementById('signatureDataInline');
-      var inlineClear = document.getElementById('clearInlineSignature');
-      if (inlineCanvas && inlineForm && inlineHidden) {
-        var ictx = inlineCanvas.getContext('2d');
-        function resizeInline(){ inlineCanvas.width = inlineCanvas.clientWidth; inlineCanvas.height = inlineCanvas.clientHeight; }
-        resizeInline();
-        window.addEventListener('resize', resizeInline);
-        ictx.lineWidth = 2.5; ictx.lineCap = 'round'; ictx.lineJoin = 'round'; ictx.strokeStyle = '#000';
-        var drawingInline=false, lastIX=0, lastIY=0, hasSig=false;
-        function pos(e){ var r=inlineCanvas.getBoundingClientRect(); var cx=(e.touches?e.touches[0].clientX:e.clientX)||0; var cy=(e.touches?e.touches[0].clientY:e.clientY)||0; return {x:cx-r.left,y:cy-r.top}; }
-        function start(e){ e.preventDefault(); drawingInline=true; var p=pos(e); lastIX=p.x; lastIY=p.y; ictx.beginPath(); ictx.moveTo(lastIX,lastIY); }
-        function move(e){ if(!drawingInline) return; e.preventDefault(); var p=pos(e); ictx.lineTo(p.x,p.y); ictx.stroke(); lastIX=p.x; lastIY=p.y; hasSig=true; }
-        function stop(){ if(!drawingInline) return; drawingInline=false; ictx.closePath(); if(hasSig){ try{ inlineHidden.value = inlineCanvas.toDataURL('image/png'); inlineForm.submit(); }catch(err){} } }
-        ;['mousedown','touchstart','pointerdown'].forEach(function(ev){ inlineCanvas.addEventListener(ev,start,{passive:false}); });
-        ;['mousemove','touchmove','pointermove'].forEach(function(ev){ inlineCanvas.addEventListener(ev,move,{passive:false}); });
-        ;['mouseup','mouseout','touchend','pointerup'].forEach(function(ev){ inlineCanvas.addEventListener(ev,stop,{passive:false}); });
-        if (inlineClear) inlineClear.addEventListener('click', function(){ ictx.clearRect(0,0,inlineCanvas.width,inlineCanvas.height); hasSig=false; });
-      }
-
       var completeModalEl = document.getElementById('completeModal');
       if (completeModalEl) {
         completeModalEl.addEventListener('shown.bs.modal', function(){
