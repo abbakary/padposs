@@ -2214,7 +2214,8 @@ def orders_list(request: HttpRequest):
     if not customer_id:
         messages.error(request, 'Customer is required to create an order')
         return render(request, "tracker/order_create.html")
-    c = get_object_or_404(Customer, pk=customer_id)
+    customers_qs2 = scope_queryset(Customer.objects.all(), request.user, request)
+    c = get_object_or_404(customers_qs2, pk=customer_id)
     form = OrderForm(request.POST)
     form.fields['vehicle'].queryset = c.vehicles.all()
     if form.is_valid():
