@@ -2403,6 +2403,57 @@ def customer_detail(request: HttpRequest, pk: int):
 
 
 @login_required
+def request_customer_access(request: HttpRequest, pk: int):
+    """Record an access request for a customer owned by another branch.
+    - Logs an audit entry.
+    - Tries to email branch users if email backend is configured.
+    - Shows an informative message and redirects to customers list.
+    """
+    try:
+        customer = Customer.objects.get(pk=pk)
+    except Customer.DoesNotExist:
+        messages.error(request, "Customer not found.")
+        return redirect('tracker:customers_list')
+
+    user_branch = get_user_branch(request.user)
+    if getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id):
+        messages.info(request, "You already have access to this customer.")
+        return redirect('tracker:customer_detail', pk=customer.id)
+
+    # Log the access request
+    try:
+        add_audit_log(request.user, 'request_customer_access', f"Requested access to customer {customer.full_name} (id={customer.id})")
+    except Exception:
+        pass
+
+    # Try to notify branch users by email (best-effort)
+    notified = 0
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings
+        branch_users = User.objects.filter(profile__branch=customer.branch, is_active=True)
+        emails = [u.email for u in branch_users if u.email]
+        if emails:
+            subject = f"Access request for customer {customer.full_name}"
+            body = f"User {request.user.get_full_name() or request.user.username} has requested access to customer {customer.full_name} (ID: {customer.id}).\n\nPlease review and grant access if appropriate."
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or None
+            try:
+                send_mail(subject, body, from_email, list(set(emails)), fail_silently=True)
+                notified = len(emails)
+            except Exception:
+                notified = 0
+    except Exception:
+        notified = 0
+
+    if notified:
+        messages.success(request, f"Access request sent to {notified} branch user(s).")
+    else:
+        messages.success(request, "Access request recorded. Branch owner will be notified in the system.")
+
+    return redirect('tracker:customers_list')
+
+
+@login_required
 def order_detail(request: HttpRequest, pk: int):
     orders_qs = scope_queryset(Order.objects.all(), request.user, request)
     order = get_object_or_404(orders_qs, pk=pk)
