@@ -2514,7 +2514,8 @@ def cancel_order(request: HttpRequest, pk: int):
 
 @login_required
 def add_order_attachments(request: HttpRequest, pk: int):
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs5 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs5, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
     if o.type == 'inquiry':
