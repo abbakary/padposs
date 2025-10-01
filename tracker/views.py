@@ -870,7 +870,7 @@ def customer_register(request: HttpRequest):
                                     if can_access:
                                         dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
                                     else:
-                                        dup_url = reverse('tracker:customers_list')
+                                        dup_url = reverse('tracker:request_customer_access', kwargs={'pk': customer.id})
                                     return json_response(
                                         False,
                                         form=form,
@@ -937,7 +937,7 @@ def customer_register(request: HttpRequest):
                                     if can_access:
                                         dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
                                     else:
-                                        dup_url = reverse('tracker:customers_list')
+                                        dup_url = reverse('tracker:request_customer_access', kwargs={'pk': customer.id})
                                     return json_response(
                                         False,
                                         form=form,
@@ -1090,7 +1090,7 @@ def customer_register(request: HttpRequest):
                         if can_access:
                             dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
                         else:
-                            dup_url = reverse('tracker:customers_list')
+                            dup_url = reverse('tracker:request_customer_access', kwargs={'pk': customer.id})
                         return json_response(
                             False,
                             form=form,
