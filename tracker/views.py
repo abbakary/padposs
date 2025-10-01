@@ -3954,7 +3954,8 @@ def user_reset_password(request: HttpRequest, pk: int):
 
 @login_required
 def customer_edit(request: HttpRequest, pk: int):
-    customer = get_object_or_404(Customer, pk=pk)
+    customers_qs_edit = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_edit, pk=pk)
     if request.method == 'POST':
         form = CustomerEditForm(request.POST, instance=customer)
         if form.is_valid():
