@@ -1058,8 +1058,14 @@ def customer_register(request: HttpRequest):
                 ).first()
                 
                 if existing_customer:
+                    from .utils import get_user_branch
+                    user_branch = get_user_branch(request.user)
+                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(existing_customer, 'branch_id', None) == user_branch.id)
                     if is_ajax:
-                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
+                        if can_access:
+                            dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
+                        else:
+                            dup_url = reverse('tracker:customers_list')
                         return json_response(
                             False,
                             form=form,
@@ -1068,8 +1074,12 @@ def customer_register(request: HttpRequest):
                             redirect_url=dup_url
                         )
                     messages.info(request, f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.")
-                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
-                    return redirect(detail_url)
+                    if can_access:
+                        detail_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
+                        return redirect(detail_url)
+                    else:
+                        messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
+                        return redirect('tracker:customers_list')
                 
                 # Create new customer if no duplicate found
                 from .utils import get_user_branch
