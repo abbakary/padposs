@@ -2361,7 +2361,8 @@ def order_detail(request: HttpRequest, pk: int):
 def update_order_status(request: HttpRequest, pk: int):
     """Manual status transitions to in_progress are disabled; progression is automatic.
     Use complete_order or cancel_order endpoints for finalization."""
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs2 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs2, pk=pk)
     messages.error(request, "Order status to In Progress is managed automatically after 10 minutes. Use Complete or Cancel for final steps.")
     return redirect("tracker:order_detail", pk=o.id)
 
