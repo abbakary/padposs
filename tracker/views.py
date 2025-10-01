@@ -1512,7 +1512,7 @@ def customer_groups(request: HttpRequest):
         start_date = today - timedelta(days=180)  # default
     
     # Base customer queryset with annotations
-    customers_base = Customer.objects.annotate(
+    customers_base = scope_queryset(Customer.objects.all(), request.user, request).annotate(
         recent_orders_count=Count('orders', filter=Q(orders__created_at__date__gte=start_date)),
         last_order_date=Max('orders__created_at'),
         first_order_date=Min('orders__created_at'),
@@ -1528,11 +1528,11 @@ def customer_groups(request: HttpRequest):
     all_customer_types = dict(Customer.TYPE_CHOICES)
     
     # Calculate total customers (all customers in the system)
-    total_customers = Customer.objects.count()
+    total_customers = scope_queryset(Customer.objects.all(), request.user, request).count()
     
     # Calculate active customers this month (customers with orders in the last 30 days)
     one_month_ago = timezone.now() - timedelta(days=30)
-    active_customers_this_month = Customer.objects.filter(
+    active_customers_this_month = scope_queryset(Customer.objects.all(), request.user, request).filter(
         orders__created_at__gte=one_month_ago
     ).distinct().count()
     
@@ -1540,16 +1540,16 @@ def customer_groups(request: HttpRequest):
     customer_groups = {}
     
     # Get customer counts per group for current period
-    current_period_counts = dict(Customer.objects.values_list('customer_type').annotate(
+    current_period_counts = dict(scope_queryset(Customer.objects.all(), request.user, request).values_list('customer_type').annotate(
         count=Count('id')
     ).values_list('customer_type', 'count'))
     
     # Get customer counts for previous period for growth calculation
     prev_period_start = start_date - (today - start_date)  # Same length as current period
-    prev_period_counts = dict(Customer.objects.filter(
+    prev_period_counts = dict(scope_queryset(Customer.objects.filter(
         registration_date__lt=start_date,
         registration_date__gte=prev_period_start
-    ).values_list('customer_type').annotate(
+    ), request.user, request).values_list('customer_type').annotate(
         count=Count('id')
     ).values_list('customer_type', 'count'))
     
