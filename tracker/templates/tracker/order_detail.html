@@ -307,20 +307,13 @@
     {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
     <div class="mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <small class="text-muted">Digital Signature</small>
+        <small class="text-muted">Signature Capture</small>
+        <button type="button" class="btn btn-sm btn-outline-success attachment-signature-trigger" data-bs-toggle="modal" data-bs-target="#completeModal">
+          <i class="fa fa-pen me-1"></i>Open Signature Pad
+        </button>
       </div>
-      <div class="border rounded bg-light p-2">
-        <form id="inlineSignForm" method="post" action="{% url 'tracker:complete_order' pk=order.id %}">
-          {% csrf_token %}
-          <input type="hidden" name="signature_data" id="signatureDataInline">
-          <div class="position-relative" style="height:220px;">
-            <canvas id="signaturePadInline" class="w-100 h-100" style="background:#fff; border:1px dashed #dee2e6; border-radius:.25rem;"></canvas>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mt-2">
-            <small class="text-muted">Sign here using the external pad (USB) or touch/mouse.</small>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearInlineSignature"><i class="fa fa-eraser me-1"></i>Clear</button>
-          </div>
-        </form>
+      <div class="border rounded bg-light p-3">
+        <p class="small text-muted mb-0">Collect the customer signature when they are ready to leave. Upload all necessary attachments first, then open the signature pad to complete the order.</p>
       </div>
     </div>
     {% endif %}
