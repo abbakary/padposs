@@ -2375,7 +2375,8 @@ def complete_order(request: HttpRequest, pk: int):
     from django.core.files.base import ContentFile
     import base64, time
 
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs3 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs3, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
 
