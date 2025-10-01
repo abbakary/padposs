@@ -1437,9 +1437,12 @@ def create_order_for_customer(request: HttpRequest, pk: int):
             o.save()
             # Update customer visit/arrival status for returning tracking
             try:
-                c.arrival_time = timezone.now()
+                now_ts = timezone.now()
+                c.arrival_time = now_ts
                 c.current_status = 'arrived'
-                c.save(update_fields=['arrival_time','current_status'])
+                c.last_visit = now_ts
+                c.total_visits = (c.total_visits or 0) + 1
+                c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
             except Exception:
                 pass
             # Deduct inventory after save
