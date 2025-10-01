@@ -634,9 +634,10 @@ def customer_detail(request: HttpRequest, pk: int):
 @login_required
 def add_customer_note(request: HttpRequest, pk: int):
     """Add or update a note on a customer's profile"""
-    customer = get_object_or_404(Customer, pk=pk)
+    customers_qs_note = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_note, pk=pk)
     note_id = request.POST.get('note_id')
-    
+
     if request.method == 'POST':
         note_content = request.POST.get('note', '').strip()
         if note_content:
@@ -1381,7 +1382,8 @@ def start_order(request: HttpRequest):
 def create_order_for_customer(request: HttpRequest, pk: int):
     """Create a new order for a specific customer"""
     from .utils import adjust_inventory
-    c = get_object_or_404(Customer, pk=pk)
+    customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
+    c = get_object_or_404(customers_qs, pk=pk)
     if request.method == "POST":
         form = OrderForm(request.POST)
         # Ensure vehicle belongs to this customer
@@ -2213,7 +2215,8 @@ def orders_list(request: HttpRequest):
     if not customer_id:
         messages.error(request, 'Customer is required to create an order')
         return render(request, "tracker/order_create.html")
-    c = get_object_or_404(Customer, pk=customer_id)
+    customers_qs2 = scope_queryset(Customer.objects.all(), request.user, request)
+    c = get_object_or_404(customers_qs2, pk=customer_id)
     form = OrderForm(request.POST)
     form.fields['vehicle'].queryset = c.vehicles.all()
     if form.is_valid():
@@ -2329,13 +2332,11 @@ def order_delete(request: HttpRequest, pk: int):
 
 @login_required
 def customer_detail(request: HttpRequest, pk: int):
-    customer = get_object_or_404(Customer, pk=pk)
+    customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs, pk=pk)
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
     notes = customer.note_entries.all().order_by('-created_at')
-
-    # Get timezone from cookie or use default
-    tzname = request.COOKIES.get('django_timezone')
 
     return render(request, "tracker/customer_detail.html", {
         'customer': customer,
@@ -2347,19 +2348,15 @@ def customer_detail(request: HttpRequest, pk: int):
 
 @login_required
 def order_detail(request: HttpRequest, pk: int):
-    order = get_object_or_404(Order, pk=pk)
+    orders_qs = scope_queryset(Order.objects.all(), request.user, request)
+    order = get_object_or_404(orders_qs, pk=pk)
     # Auto-progress created -> in_progress after 10 minutes
     try:
         order.auto_progress_if_elapsed()
     except Exception:
         pass
-    # Get timezone from cookie or use default
-    tzname = request.COOKIES.get('django_timezone')
-    
     # Prepare context
-    context = {
-        "order": order,
-    }
+    context = {"order": order}
     return render(request, "tracker/order_detail.html", context)
 
 
@@ -2367,7 +2364,8 @@ def order_detail(request: HttpRequest, pk: int):
 def update_order_status(request: HttpRequest, pk: int):
     """Manual status transitions to in_progress are disabled; progression is automatic.
     Use complete_order or cancel_order endpoints for finalization."""
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs2 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs2, pk=pk)
     messages.error(request, "Order status to In Progress is managed automatically after 10 minutes. Use Complete or Cancel for final steps.")
     return redirect("tracker:order_detail", pk=o.id)
 
@@ -2380,7 +2378,8 @@ def complete_order(request: HttpRequest, pk: int):
     from django.core.files.base import ContentFile
     import base64, time
 
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs3 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs3, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
 
@@ -2490,7 +2489,8 @@ def complete_order(request: HttpRequest, pk: int):
 @login_required
 def cancel_order(request: HttpRequest, pk: int):
     """Cancel an order with a required reason."""
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs4 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs4, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
     # Disallow cancelling inquiries — they are auto-completed on creation
@@ -2517,7 +2517,8 @@ def cancel_order(request: HttpRequest, pk: int):
 
 @login_required
 def add_order_attachments(request: HttpRequest, pk: int):
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs5 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs5, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
     if o.type == 'inquiry':
@@ -2570,6 +2571,11 @@ def add_order_attachments(request: HttpRequest, pk: int):
 @login_required
 def delete_order_attachment(request: HttpRequest, att_id: int):
     att = get_object_or_404(OrderAttachment, pk=att_id)
+    # Enforce branch access via the attachment's order
+    allowed_orders = scope_queryset(Order.objects.all(), request.user, request)
+    if not allowed_orders.filter(pk=att.order_id).exists():
+        messages.error(request, 'You do not have permission to modify this attachment.')
+        return redirect('tracker:order_detail', pk=att.order_id)
     order_id = att.order_id
     try:
         att.delete()
@@ -2863,7 +2869,7 @@ def customers_export(request: HttpRequest):
 def orders_export(request: HttpRequest):
     status = request.GET.get('status','all')
     type_ = request.GET.get('type','all')
-    qs = Order.objects.select_related('customer').order_by('-created_at')
+    qs = scope_queryset(Order.objects.select_related('customer').order_by('-created_at'), request.user, request)
     if status != 'all':
         qs = qs.filter(status=status)
     if type_ != 'all':
@@ -3172,8 +3178,9 @@ def api_inventory_stock(request: HttpRequest):
 @login_required
 def vehicle_add(request: HttpRequest, customer_id: int):
     """Add a new vehicle for a customer"""
-    customer = get_object_or_404(Customer, pk=customer_id)
-    
+    customers_qs_vadd = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_vadd, pk=customer_id)
+
     if request.method == 'POST':
         form = VehicleForm(request.POST)
         if form.is_valid():
@@ -3195,8 +3202,9 @@ def vehicle_add(request: HttpRequest, customer_id: int):
 @login_required
 def customer_delete(request: HttpRequest, pk: int):
     """Delete a customer and all associated data"""
-    customer = get_object_or_404(Customer, pk=pk)
-    
+    customers_qs_del = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_del, pk=pk)
+
     if request.method == 'POST':
         # Log the deletion before actually deleting
         try:
@@ -3261,7 +3269,8 @@ def vehicle_delete(request: HttpRequest, pk: int):
 def api_customer_vehicles(request: HttpRequest, customer_id: int):
     """API endpoint to get vehicles for a specific customer"""
     try:
-        customer = Customer.objects.get(pk=customer_id)
+        customers_qs_av = scope_queryset(Customer.objects.all(), request.user, request)
+        customer = customers_qs_av.get(pk=customer_id)
         vehicles = [{
             'id': v.id,
             'make': v.make or '',
@@ -3868,14 +3877,18 @@ def users_list(request: HttpRequest):
     if q:
         qs = qs.filter(Q(username__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(email__icontains=q))
 
-    # Support branch param as either numeric id or branch name (exact match)
-    if branch_param:
-        if branch_param.isdigit():
-            qs = qs.filter(profile__branch_id=int(branch_param))
-        else:
-            b = Branch.objects.filter(name__iexact=branch_param).first()
-            if b:
-                qs = qs.filter(profile__branch_id=b.id)
+    # Superusers can filter across branches, staff are restricted to their assigned branch
+    if request.user.is_superuser:
+        if branch_param:
+            if branch_param.isdigit():
+                qs = qs.filter(profile__branch_id=int(branch_param))
+            else:
+                b = Branch.objects.filter(name__iexact=branch_param).first()
+                if b:
+                    qs = qs.filter(profile__branch_id=b.id)
+    else:
+        b = getattr(getattr(request.user, 'profile', None), 'branch', None)
+        qs = qs.filter(profile__branch=b) if b else qs.none()
 
     branches = list(Branch.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
     return render(request, 'tracker/users_list.html', { 'users': qs[:100], 'q': q, 'branches': branches, 'selected_branch': branch_param })
@@ -3942,7 +3955,8 @@ def user_reset_password(request: HttpRequest, pk: int):
 
 @login_required
 def customer_edit(request: HttpRequest, pk: int):
-    customer = get_object_or_404(Customer, pk=pk)
+    customers_qs_edit = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_edit, pk=pk)
     if request.method == 'POST':
         form = CustomerEditForm(request.POST, instance=customer)
         if form.is_valid():
