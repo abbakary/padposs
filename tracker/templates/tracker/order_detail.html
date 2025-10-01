@@ -964,6 +964,18 @@
     let hasSignature = false;
     let currentFileUrl = null;
     let currentCanvas = null;
+    const externalHooks = {
+      begin: null,
+      move: null,
+      end: null,
+      ensureSurface: null,
+      getCanvas: function() {
+        return currentCanvas;
+      },
+      isDrawing: function() {
+        return drawing;
+      }
+    };
 
     function clearPreview() {
       if (!previewCtx || !previewCanvas) return;
