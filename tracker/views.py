@@ -634,9 +634,10 @@ def customer_detail(request: HttpRequest, pk: int):
 @login_required
 def add_customer_note(request: HttpRequest, pk: int):
     """Add or update a note on a customer's profile"""
-    customer = get_object_or_404(Customer, pk=pk)
+    customers_qs_note = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_note, pk=pk)
     note_id = request.POST.get('note_id')
-    
+
     if request.method == 'POST':
         note_content = request.POST.get('note', '').strip()
         if note_content:
