@@ -1230,11 +1230,14 @@ def customer_register(request: HttpRequest):
                         contact_preference=contact_preference,
                         follow_up_date=followup_date if followup_date else None
                     )
-                    
-                    # Update customer status
-                    c.arrival_time = timezone.now()
+
+                    # Update customer status and visit metrics
+                    now_ts = timezone.now()
+                    c.arrival_time = now_ts
                     c.current_status = 'arrived'
-                    c.save(update_fields=['arrival_time','current_status'])
+                    c.last_visit = now_ts
+                    c.total_visits = (c.total_visits or 0) + 1
+                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
                 # Update customer visit/arrival status for returning tracking
                 try:
                     c.arrival_time = timezone.now()
