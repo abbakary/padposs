@@ -118,6 +118,8 @@
         if (svc) svc.style.display = (t==='service')? 'block':'none';
         if (sal) sal.style.display = (t==='sales')? 'block':'none';
         if (inq) inq.style.display = (t==='inquiry')? 'block':'none';
+        var veh = document.getElementById('vehicleFieldGroup');
+        if (veh) veh.style.display = (t==='inquiry')? 'none':'block';
       }
       if(typeEl){ typeEl.addEventListener('change', updateSections); updateSections(); }
 
