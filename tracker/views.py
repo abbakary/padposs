@@ -2329,13 +2329,11 @@ def order_delete(request: HttpRequest, pk: int):
 
 @login_required
 def customer_detail(request: HttpRequest, pk: int):
-    customer = get_object_or_404(Customer, pk=pk)
+    customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs, pk=pk)
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
     notes = customer.note_entries.all().order_by('-created_at')
-
-    # Get timezone from cookie or use default
-    tzname = request.COOKIES.get('django_timezone')
 
     return render(request, "tracker/customer_detail.html", {
         'customer': customer,
