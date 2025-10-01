@@ -87,7 +87,7 @@
               {{ form.priority }}
               {% if form.priority.errors %}<div class="text-danger f-12">{{ form.priority.errors|striptags }}</div>{% endif %}
             </div>
-            <div class="col-md-4">
+            <div class="col-md-4" id="vehicleFieldGroup">
               <label class="form-label">{{ form.vehicle.label }}</label>
               {{ form.vehicle }}
               {% if form.vehicle.errors %}<div class="text-danger f-12">{{ form.vehicle.errors|striptags }}</div>{% endif %}
@@ -118,6 +118,8 @@
         if (svc) svc.style.display = (t==='service')? 'block':'none';
         if (sal) sal.style.display = (t==='sales')? 'block':'none';
         if (inq) inq.style.display = (t==='inquiry')? 'block':'none';
+        var veh = document.getElementById('vehicleFieldGroup');
+        if (veh) veh.style.display = (t==='inquiry')? 'none':'block';
       }
       if(typeEl){ typeEl.addEventListener('change', updateSections); updateSections(); }
 

@@ -178,17 +178,13 @@ def dashboard(request: HttpRequest):
         # Update status_counts to ensure 'completed' key exists
         status_counts['completed'] = completed_orders
         
-        # Also count completed today for dashboard - check all completed orders for today
-        today_date = timezone.localdate()
-        
-        # Count completed orders by completed_at date (if set) or created_at date
-        completed_today_count = orders_qs.filter(
-            status="completed"
-        ).extra(
-            where=[
-                "(completed_at IS NOT NULL AND DATE(completed_at) = %s) OR (completed_at IS NULL AND DATE(created_at) = %s)"
-            ],
-            params=[today_date, today_date]
+        # Also count completed today - MySQL compatible using range
+        from .utils.mysql_compat import get_date_range
+        today_date = timezone.now().date()
+        start_dt, end_dt = get_date_range(today_date)
+        completed_today_count = orders_qs.filter(status="completed").filter(
+            Q(completed_at__gte=start_dt, completed_at__lte=end_dt) |
+            Q(completed_at__isnull=True, created_at__gte=start_dt, created_at__lte=end_dt)
         ).count()
 
         # New customers this month - MySQL compatible
@@ -1202,11 +1198,14 @@ def customer_register(request: HttpRequest):
                         description=final_description,
                         estimated_duration=int(estimated_duration) if estimated_duration else None
                     )
-                    
-                    # Update customer status
-                    c.arrival_time = timezone.now()
+
+                    # Update customer status and visit metrics
+                    now_ts = timezone.now()
+                    c.arrival_time = now_ts
                     c.current_status = 'arrived'
-                    c.save(update_fields=['arrival_time','current_status'])
+                    c.last_visit = now_ts
+                    c.total_visits = (c.total_visits or 0) + 1
+                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
                     
                 elif intent == "inquiry":
                     # Get data from step 3 session
@@ -1231,16 +1230,22 @@ def customer_register(request: HttpRequest):
                         contact_preference=contact_preference,
                         follow_up_date=followup_date if followup_date else None
                     )
-                    
-                    # Update customer status
-                    c.arrival_time = timezone.now()
+
+                    # Update customer status and visit metrics
+                    now_ts = timezone.now()
+                    c.arrival_time = now_ts
                     c.current_status = 'arrived'
-                    c.save(update_fields=['arrival_time','current_status'])
+                    c.last_visit = now_ts
+                    c.total_visits = (c.total_visits or 0) + 1
+                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
                 # Update customer visit/arrival status for returning tracking
                 try:
-                    c.arrival_time = timezone.now()
+                    now_ts = timezone.now()
+                    c.arrival_time = now_ts
                     c.current_status = 'arrived'
-                    c.save(update_fields=['arrival_time','current_status'])
+                    c.last_visit = now_ts
+                    c.total_visits = (c.total_visits or 0) + 1
+                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
                 except Exception:
                     pass
                 
@@ -1432,9 +1437,12 @@ def create_order_for_customer(request: HttpRequest, pk: int):
             o.save()
             # Update customer visit/arrival status for returning tracking
             try:
-                c.arrival_time = timezone.now()
+                now_ts = timezone.now()
+                c.arrival_time = now_ts
                 c.current_status = 'arrived'
-                c.save(update_fields=['arrival_time','current_status'])
+                c.last_visit = now_ts
+                c.total_visits = (c.total_visits or 0) + 1
+                c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
             except Exception:
                 pass
             # Deduct inventory after save
@@ -1516,7 +1524,7 @@ def customer_groups(request: HttpRequest):
         start_date = today - timedelta(days=180)  # default
     
     # Base customer queryset with annotations
-    customers_base = Customer.objects.annotate(
+    customers_base = scope_queryset(Customer.objects.all(), request.user, request).annotate(
         recent_orders_count=Count('orders', filter=Q(orders__created_at__date__gte=start_date)),
         last_order_date=Max('orders__created_at'),
         first_order_date=Min('orders__created_at'),
@@ -1532,11 +1540,11 @@ def customer_groups(request: HttpRequest):
     all_customer_types = dict(Customer.TYPE_CHOICES)
     
     # Calculate total customers (all customers in the system)
-    total_customers = Customer.objects.count()
+    total_customers = scope_queryset(Customer.objects.all(), request.user, request).count()
     
     # Calculate active customers this month (customers with orders in the last 30 days)
     one_month_ago = timezone.now() - timedelta(days=30)
-    active_customers_this_month = Customer.objects.filter(
+    active_customers_this_month = scope_queryset(Customer.objects.all(), request.user, request).filter(
         orders__created_at__gte=one_month_ago
     ).distinct().count()
     
@@ -1544,16 +1552,16 @@ def customer_groups(request: HttpRequest):
     customer_groups = {}
     
     # Get customer counts per group for current period
-    current_period_counts = dict(Customer.objects.values_list('customer_type').annotate(
+    current_period_counts = dict(scope_queryset(Customer.objects.all(), request.user, request).values_list('customer_type').annotate(
         count=Count('id')
     ).values_list('customer_type', 'count'))
     
     # Get customer counts for previous period for growth calculation
     prev_period_start = start_date - (today - start_date)  # Same length as current period
-    prev_period_counts = dict(Customer.objects.filter(
+    prev_period_counts = dict(scope_queryset(Customer.objects.filter(
         registration_date__lt=start_date,
         registration_date__gte=prev_period_start
-    ).values_list('customer_type').annotate(
+    ), request.user, request).values_list('customer_type').annotate(
         count=Count('id')
     ).values_list('customer_type', 'count'))
     
@@ -2200,9 +2208,12 @@ def orders_list(request: HttpRequest):
         order = Order.objects.create(**order_data)
         # Update customer visit/arrival status for returning tracking
         try:
-            customer.arrival_time = timezone.now()
+            now_ts = timezone.now()
+            customer.arrival_time = now_ts
             customer.current_status = 'arrived'
-            customer.save(update_fields=['arrival_time','current_status'])
+            customer.last_visit = now_ts
+            customer.total_visits = (customer.total_visits or 0) + 1
+            customer.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
         except Exception:
             pass
         remaining = None
@@ -3754,7 +3765,7 @@ def organization_management(request: HttpRequest):
     else:
         start_date = today - timezone.timedelta(days=180)
 
-    base = Customer.objects.filter(customer_type__in=org_types)
+    base = scope_queryset(Customer.objects.filter(customer_type__in=org_types), request.user, request)
     if q:
         base = base.filter(Q(full_name__icontains=q) | Q(phone__icontains=q) | Q(email__icontains=q) | Q(organization_name__icontains=q) | Q(code__icontains=q))
 
@@ -3787,7 +3798,7 @@ def organization_management(request: HttpRequest):
     total_org = sum(counts.values()) if counts else 0
 
     # Charts
-    orders_scope = Order.objects.filter(customer__in=base, created_at__date__gte=start_date)
+    orders_scope = scope_queryset(Order.objects.filter(customer__in=base, created_at__date__gte=start_date), request.user, request)
     if status == 'returning':
         orders_scope = orders_scope.filter(customer__total_visits__gt=1)
     type_dist = {r['type']: r['c'] for r in orders_scope.values('type').annotate(c=Count('id'))}
@@ -3833,7 +3844,7 @@ def organization_export(request: HttpRequest):
     else:
         start_date = today - timezone.timedelta(days=180)
 
-    base = Customer.objects.filter(customer_type__in=org_types)
+    base = scope_queryset(Customer.objects.filter(customer_type__in=org_types), request.user, request)
     if q:
         base = base.filter(Q(full_name__icontains=q) | Q(phone__icontains=q) | Q(email__icontains=q) | Q(organization_name__icontains=q) | Q(code__icontains=q))
     qs = base.annotate(
@@ -4253,7 +4264,7 @@ def reports_advanced(request: HttpRequest):
     end_dt = timezone.make_aware(datetime.combine(end_date + timedelta(days=1), dt_time.min), tz)
 
     # Reuse filtered querysets for consistency
-    qs = Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
+    qs = scope_queryset(Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt), request.user, request)
     cqs = scope_queryset(Customer.objects.filter(registration_date__gte=start_dt, registration_date__lt=end_dt), request.user, request)
 
     # Base statistics
@@ -4299,7 +4310,7 @@ def reports_advanced(request: HttpRequest):
         stats['service_percentage'] = stats['sales_percentage'] = stats['inquiry_percentage'] = 0
 
     # Real trend data per selected period
-    qs = Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
+    qs = scope_queryset(Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt), request.user, request)
     if period == 'daily':
         from django.db.models.functions import ExtractHour
         trend_map = {int(r['h'] or 0): r['c'] for r in qs.annotate(h=ExtractHour('created_at')).values('h').annotate(c=Count('id'))}
@@ -4322,7 +4333,7 @@ def reports_advanced(request: HttpRequest):
             'values': [
                 qs.filter(status='created').count(),
                 qs.filter(status='in_progress').count(),
-                Order.objects.filter(completed_at__gte=start_dt, completed_at__lt=end_dt, status='completed').count(),
+                scope_queryset(Order.objects.filter(completed_at__gte=start_dt, completed_at__lt=end_dt, status='completed'), request.user, request).count(),
                 qs.filter(status='cancelled').count(),
             ]
         },
@@ -4964,7 +4975,7 @@ def analytics_service(request: HttpRequest):
     # Previous period (same length right before start_date)
     prev_end = start_date - timezone.timedelta(days=1)
     prev_start = prev_end - timezone.timedelta(days=trend_days - 1)
-    prev_qs = Order.objects.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end)
+    prev_qs = scope_queryset(Order.objects.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end), request.user, request)
     def pct_change(curr, prev):
         return round(((curr - prev) * 100.0) / (prev if prev else 1), 1)
     prev_by_type = {r["type"] or "": r["c"] for r in prev_qs.values("type").annotate(c=Count("id"))}
