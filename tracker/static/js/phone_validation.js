@@ -73,13 +73,16 @@
 
     // Sync hidden normalized on input/blur
     function onInput(e){
-      var value = e.target.value.replace(/[^\d+\s]/g,'');
-      // Length guards
-      if(value.startsWith('+255')){ if(value.length>16) value = value.substring(0,16); }
-      else if(value.startsWith('0')){ if(value.length>14) value = value.substring(0,14); }
-      else { if(value.length>16) value = value.substring(0,16); }
-      e.target.value = value;
-      hidden.value = normalizeTZ(value);
+      var v = e.target.value.replace(/[^\d+\s]/g,'');
+      // If user starts with 0, convert to +255 and keep the rest
+      if(v.startsWith('0')){
+        v = '+255 ' + v.slice(1);
+      }
+      // Length guards (max +255 123 456 789 => 16 incl spaces; local 0xx xxx xxx => 14 incl spaces)
+      if(v.startsWith('+255')){ if(v.length>16) v = v.substring(0,16); }
+      else { if(v.length>14) v = v.substring(0,14); }
+      e.target.value = v;
+      hidden.value = normalizeTZ(v);
     }
     input.addEventListener('input', onInput);
     input.addEventListener('blur', onInput);
