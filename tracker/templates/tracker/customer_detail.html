@@ -154,6 +154,11 @@
     .stat-card:hover {
         transform: translateY(-3px);
     }
+    /* Vehicle details meta styles */
+    .vehicle-list-scroll { max-height: 400px; }
+    .vehicle-details .meta-label { color: var(--bs-secondary-color, #6c757d); font-size: .875rem; }
+    .vehicle-details .meta-value { color: var(--bs-body-color, #212529); font-weight: 600; }
+    .vehicle-details .detail-item { display: flex; justify-content: space-between; align-items: center; padding: .25rem 0; }
 </style>
 {% endblock %}
 
@@ -287,36 +292,14 @@
                         <i class="fa fa-plus me-1"></i>Add
                     </button>
                 </div>
-                <div class="card-body overflow-auto" style="max-height: 400px;">
+                <div class="card-body overflow-auto vehicle-list-scroll">
                     {% if vehicles %}
                         <div class="vehicles-list">
                             {% for vehicle in vehicles %}
                                 <div class="vehicle-card p-3 rounded bg-light mb-3">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="vehicle-info flex-grow-1">
-                                            <h6 class="mb-1 text-primary fw-bold"><i class="fa fa-car me-2"></i>Vehicle</h6>
-                                            <div class="row">
-                                              <div class="col-6">
-                                                <small class="text-muted">Plate</small>
-                                                <div class="fw-medium">{{ vehicle.plate_number|default:'-' }}</div>
-                                              </div>
-                                              <div class="col-6">
-                                                <small class="text-muted">Type</small>
-                                                <div class="fw-medium">{{ vehicle.vehicle_type|default:'-' }}</div>
-                                              </div>
-                                            </div>
-                                            <div class="row mt-2">
-                                              <div class="col-6">
-                                                <small class="text-muted">Make</small>
-                                                <div class="fw-medium">{{ vehicle.make|default:'-' }}</div>
-                                              </div>
-                                              <div class="col-6">
-                                                <small class="text-muted">Model</small>
-                                                <div class="fw-medium">{{ vehicle.model|default:'-' }}</div>
-                                              </div>
-                                            </div>
-                                        </div>
-                                        <div class="vehicle-actions btn-group btn-group-sm ms-2">
+                                    <div class="d-flex justify-content-between align-items-center vehicle-header">
+                                        <h6 class="mb-0 text-primary fw-bold"><i class="fa fa-car me-2"></i>Vehicle</h6>
+                                        <div class="vehicle-actions btn-group btn-group-sm">
                                             <a class="btn btn-outline-secondary" href="{% url 'tracker:vehicle_edit' vehicle.id %}" title="Edit Vehicle">
                                                 <i class="fa fa-edit"></i>
                                             </a>
@@ -326,6 +309,14 @@
                                                     <i class="fa fa-trash"></i>
                                                 </button>
                                             </form>
+                                        </div>
+                                    </div>
+                                    <div class="vehicle-details mt-3">
+                                        <div class="row g-2">
+                                            <div class="col-6 detail-item"><span class="meta-label">Plate</span><span class="meta-value">{{ vehicle.plate_number|default:'-' }}</span></div>
+                                            <div class="col-6 detail-item"><span class="meta-label">Type</span><span class="meta-value">{{ vehicle.vehicle_type|default:'-' }}</span></div>
+                                            <div class="col-6 detail-item"><span class="meta-label">Make</span><span class="meta-value">{{ vehicle.make|default:'-' }}</span></div>
+                                            <div class="col-6 detail-item"><span class="meta-label">Model</span><span class="meta-value">{{ vehicle.model|default:'-' }}</span></div>
                                         </div>
                                     </div>
                                 </div>

@@ -22,7 +22,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ValidationError
 from .models import Profile, Customer, Order, Vehicle, InventoryItem, CustomerNote, Brand, Branch, OrderAttachment
 from django.core.paginator import Paginator
-from .utils import add_audit_log, get_audit_logs, clear_audit_logs, scope_queryset
+from .utils import add_audit_log, get_audit_logs, clear_audit_logs, scope_queryset, get_user_branch
 from datetime import datetime, timedelta
 
 
@@ -863,19 +863,33 @@ def customer_register(request: HttpRequest):
                         # Check for exact or partial match (at least 6 digits matching)
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
                             if normalized_phone in stored_phone or stored_phone in normalized_phone:
+                                from .utils import get_user_branch
+                                user_branch = get_user_branch(request.user)
+                                can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
                                 if is_ajax:
-                                    # Include a flash flag in redirect for client-side navigation
-                                    dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                    return json_response(
-                                        False, 
-                                        form=form, 
-                                        message=f'Customer already exists: {customer.full_name} ({customer.phone})',
-                                        message_type='warning',
-                                        redirect_url=dup_url
-                                    )
+                                    if can_access:
+                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                        return json_response(
+                                            False,
+                                            form=form,
+                                            message=f'Customer already exists: {customer.full_name} ({customer.phone})',
+                                            message_type='warning',
+                                            redirect_url=dup_url
+                                        )
+                                    else:
+                                        # Cross-branch duplicate: allow creation in current branch (do not return), but set a message and break out to create
+                                        dup_cross_branch = True
+                                        messages.warning(request, f'Customer exists in another branch: {customer.full_name} ({customer.phone}). A separate customer will be created in your branch.')
+                                        break
+                                # Non-AJAX flow
                                 messages.warning(request, f'Customer already exists: {customer.full_name} ({customer.phone})')
-                                detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                return redirect(detail_url)
+                                if can_access:
+                                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    return redirect(detail_url)
+                                else:
+                                    dup_cross_branch = True
+                                    messages.info(request, 'A customer with the same details exists in another branch. A separate record will be created for your branch.')
+                                    break
                     
                         # If quick save, create the customer immediately
                         from .utils import get_user_branch
@@ -914,22 +928,36 @@ def customer_register(request: HttpRequest):
                     normalized_phone = re.sub(r'\D', '', phone) if phone else ''
                     from .utils import get_user_branch
                     existing_customers = Customer.objects.filter(full_name__iexact=full_name, branch=get_user_branch(request.user))
+                    dup_cross_branch = False
                     for customer in existing_customers:
                         stored_phone = re.sub(r'\D', '', str(customer.phone or ''))
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
                             if normalized_phone in stored_phone or stored_phone in normalized_phone:
+                                from .utils import get_user_branch
+                                user_branch = get_user_branch(request.user)
+                                can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
                                 if is_ajax:
-                                    dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                    return json_response(
-                                        False,
-                                        form=form,
-                                        message=f"Customer '{customer.full_name}' already exists. Redirected to their profile.",
-                                        message_type='info',
-                                        redirect_url=dup_url
-                                    )
+                                    if can_access:
+                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                        return json_response(
+                                            False,
+                                            form=form,
+                                            message=f"Customer '{customer.full_name}' already exists. Redirected to their profile.",
+                                            message_type='info',
+                                            redirect_url=dup_url
+                                        )
+                                    else:
+                                        dup_cross_branch = True
+                                        messages.info(request, f"A customer with similar details exists in another branch: {customer.full_name} ({customer.phone}). A separate customer will be created for your branch.")
+                                        break
                                 messages.info(request, f"Customer '{customer.full_name}' already exists. Redirected to their profile.")
-                                detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                return redirect(detail_url)
+                                if can_access:
+                                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    return redirect(detail_url)
+                                else:
+                                    dup_cross_branch = True
+                                    messages.info(request, 'A customer with similar details exists in another branch. A separate record will be created for your branch.')
+                                    break
                 except Exception:
                     pass
 
@@ -1058,18 +1086,29 @@ def customer_register(request: HttpRequest):
                 ).first()
                 
                 if existing_customer:
-                    if is_ajax:
-                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
-                        return json_response(
-                            False,
-                            form=form,
-                            message=f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.",
-                            message_type="info",
-                            redirect_url=dup_url
-                        )
-                    messages.info(request, f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.")
-                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
-                    return redirect(detail_url)
+                    from .utils import get_user_branch
+                    user_branch = get_user_branch(request.user)
+                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(existing_customer, 'branch_id', None) == user_branch.id)
+                    if can_access:
+                        # If user can access the existing record (same branch or superuser) keep previous behavior and redirect
+                        if is_ajax:
+                            dup_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
+                            return json_response(
+                                False,
+                                form=form,
+                                message=f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.",
+                                message_type="info",
+                                redirect_url=dup_url
+                            )
+                        messages.info(request, f"Customer '{full_name}' with phone '{phone}' already exists. You've been redirected to their profile.")
+                        detail_url = reverse("tracker:customer_detail", kwargs={'pk': existing_customer.id}) + "?flash=existing_customer"
+                        return redirect(detail_url)
+
+                    # If existing customer belongs to another branch, allow creating a separate customer record in current user's branch
+                    other_branch = getattr(existing_customer, 'branch', None)
+                    branch_name = getattr(other_branch, 'name', other_branch) if other_branch else 'another branch'
+                    messages.warning(request, f"A customer with the same name and phone exists in {branch_name}. A separate customer will be created for your branch.")
+                    # proceed to create a new customer below
                 
                 # Create new customer if no duplicate found
                 from .utils import get_user_branch
@@ -2347,7 +2386,13 @@ def order_delete(request: HttpRequest, pk: int):
 @login_required
 def customer_detail(request: HttpRequest, pk: int):
     customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
-    customer = get_object_or_404(customers_qs, pk=pk)
+    try:
+        customer = customers_qs.get(pk=pk)
+    except Customer.DoesNotExist:
+        # Customer either doesn't exist or is not accessible to this user.
+        messages.warning(request, "Customer not found or you don't have permission to view this customer.")
+        return redirect('tracker:customers_list')
+
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
     notes = customer.note_entries.all().order_by('-created_at')
@@ -2358,6 +2403,57 @@ def customer_detail(request: HttpRequest, pk: int):
         'vehicles': vehicles,
         'notes': notes,
     })
+
+
+@login_required
+def request_customer_access(request: HttpRequest, pk: int):
+    """Record an access request for a customer owned by another branch.
+    - Logs an audit entry.
+    - Tries to email branch users if email backend is configured.
+    - Shows an informative message and redirects to customers list.
+    """
+    try:
+        customer = Customer.objects.get(pk=pk)
+    except Customer.DoesNotExist:
+        messages.error(request, "Customer not found.")
+        return redirect('tracker:customers_list')
+
+    user_branch = get_user_branch(request.user)
+    if getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id):
+        messages.info(request, "You already have access to this customer.")
+        return redirect('tracker:customer_detail', pk=customer.id)
+
+    # Log the access request
+    try:
+        add_audit_log(request.user, 'request_customer_access', f"Requested access to customer {customer.full_name} (id={customer.id})")
+    except Exception:
+        pass
+
+    # Try to notify branch users by email (best-effort)
+    notified = 0
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings
+        branch_users = User.objects.filter(profile__branch=customer.branch, is_active=True)
+        emails = [u.email for u in branch_users if u.email]
+        if emails:
+            subject = f"Access request for customer {customer.full_name}"
+            body = f"User {request.user.get_full_name() or request.user.username} has requested access to customer {customer.full_name} (ID: {customer.id}).\n\nPlease review and grant access if appropriate."
+            from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or None
+            try:
+                send_mail(subject, body, from_email, list(set(emails)), fail_silently=True)
+                notified = len(emails)
+            except Exception:
+                notified = 0
+    except Exception:
+        notified = 0
+
+    if notified:
+        messages.success(request, f"Access request sent to {notified} branch user(s).")
+    else:
+        messages.success(request, "Access request recorded. Branch owner will be notified in the system.")
+
+    return redirect('tracker:customers_list')
 
 
 @login_required
@@ -4005,10 +4101,8 @@ def customers_quick_create(request: HttpRequest):
             import re
             normalized_phone = re.sub(r'\D', '', phone)
             
-            # Check for existing customers with similar name and phone
-            existing_customers = Customer.objects.filter(
-                full_name__iexact=full_name
-            )
+            # Check for existing customers with similar name and phone (scope to user's accessible customers)
+            existing_customers = scope_queryset(Customer.objects.filter(full_name__iexact=full_name), request.user, request)
             
             # Check each potential match for phone number similarity
             for customer in existing_customers:
@@ -4025,12 +4119,15 @@ def customers_quick_create(request: HttpRequest):
                             'customer_phone': str(customer.phone)
                         })
 
-            # Create customer
+            # Create customer (assign to user's branch if applicable)
+            from .utils import get_user_branch
+            customer_branch = get_user_branch(request.user)
             customer = Customer.objects.create(
                 full_name=full_name,
                 phone=phone,
                 email=email if email else None,
-                customer_type=customer_type
+                customer_type=customer_type,
+                branch=customer_branch
             )
 
             try:
