@@ -25,31 +25,51 @@
     if(!input.getAttribute('autocomplete')) input.setAttribute('autocomplete','tel');
     if(!input.getAttribute('placeholder')) input.setAttribute('placeholder','+255 712 345 678');
 
-    // Create hidden normalized field submitted alongside
+    // Create/ensure hidden normalized field submitted alongside
     var hiddenName = (input.getAttribute('name') || 'phone') + '_normalized';
-    var hidden = document.createElement('input');
-    hidden.type = 'hidden';
-    hidden.name = hiddenName;
+    var existingHidden = document.querySelector('input[type="hidden"][name="'+hiddenName+'"]');
+    var hidden = existingHidden || document.createElement('input');
+    if(!existingHidden){
+      hidden.type = 'hidden';
+      hidden.name = hiddenName;
+    }
     hidden.value = normalizeTZ(input.value);
 
-    // Wrap with a simple flag addon without breaking existing layout
-    var wrapper = document.createElement('div');
-    wrapper.className = 'tz-phone-group';
-
-    var addon = document.createElement('span');
-    addon.className = 'tz-flag-addon';
-    var img = document.createElement('img');
-    img.src = '/static/assets/images/flags/tz.svg';
-    img.alt = 'TZ';
-    img.className = 'tz-flag';
-    addon.appendChild(img);
-
-    // Insert DOM: replace input with wrapper [addon][input]
+    // If already wrapped with tz-phone-group (e.g., from server template), don't add another flag
     var parent = input.parentNode;
-    parent.insertBefore(wrapper, input);
-    wrapper.appendChild(addon);
-    wrapper.appendChild(input);
-    parent.insertBefore(hidden, wrapper.nextSibling);
+    var alreadyWrapped = parent && parent.classList && parent.classList.contains('tz-phone-group');
+    var hasFlagAddon = alreadyWrapped && parent.querySelector('.tz-flag-addon');
+
+    if(!alreadyWrapped){
+      var wrapper = document.createElement('div');
+      wrapper.className = 'tz-phone-group';
+
+      var addon = document.createElement('span');
+      addon.className = 'tz-flag-addon';
+      var img = document.createElement('img');
+      img.src = '/static/assets/images/flags/tz.svg';
+      img.alt = 'TZ';
+      img.className = 'tz-flag';
+      addon.appendChild(img);
+
+      parent.insertBefore(wrapper, input);
+      wrapper.appendChild(addon);
+      wrapper.appendChild(input);
+      parent = wrapper;
+    } else if(!hasFlagAddon){
+      // If wrapper exists but no flag, add one (keeps single flag)
+      var addon2 = document.createElement('span');
+      addon2.className = 'tz-flag-addon';
+      var img2 = document.createElement('img');
+      img2.src = '/static/assets/images/flags/tz.svg';
+      img2.alt = 'TZ';
+      img2.className = 'tz-flag';
+      addon2.appendChild(img2);
+      parent.insertBefore(addon2, input);
+    }
+
+    // Place hidden after the wrapper
+    if(!existingHidden){ parent.parentNode.insertBefore(hidden, parent.nextSibling); }
 
     // Sync hidden normalized on input/blur
     function onInput(e){
