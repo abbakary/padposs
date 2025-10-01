@@ -362,7 +362,7 @@ class CustomerEditForm(forms.ModelForm):
             if not cleaned.get('personal_subtype'):
                 self.add_error('personal_subtype', 'Please specify if you are the owner or driver')
         
-        # Duplicate checks (exact match; no normalization)
+        # Duplicate checks (exact match) restricted to the same branch
         try:
             full_name = (cleaned.get('full_name') or '').strip()
             phone = (cleaned.get('phone') or '').strip()
@@ -370,9 +370,12 @@ class CustomerEditForm(forms.ModelForm):
             tax = cleaned.get('tax_number')
             from .models import Customer
             qs = Customer.objects.all()
+            b = getattr(self.instance, 'branch', None)
+            if b:
+                qs = qs.filter(branch=b)
             if customer_type == 'personal':
                 if full_name and phone and qs.filter(full_name=full_name, phone=phone, customer_type='personal').exists():
-                    self.add_error(None, 'A personal customer with this full name and phone already exists.')
+                    self.add_error(None, 'A personal customer with this full name and phone already exists in this branch.')
             elif customer_type in ['government', 'ngo', 'company']:
                 if full_name and phone and org and tax and qs.filter(
                     full_name=full_name,
@@ -381,11 +384,10 @@ class CustomerEditForm(forms.ModelForm):
                     tax_number=tax,
                     customer_type=customer_type,
                 ).exists():
-                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists.')
+                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists in this branch.')
         except Exception:
-            # Do not block the form on DB issues; DB constraint still protects uniqueness at save
             pass
-        
+
         return cleaned
 
 class BrandForm(forms.ModelForm):
