@@ -889,13 +889,25 @@
   function initializeFormToggles() {
     const completeBtn = document.getElementById('showCompleteBtn');
     const cancelBtn = document.getElementById('showCancelBtn');
+    const signatureModalEl = document.getElementById('completeModal');
+    const attachmentsModalEl = document.getElementById('attachmentModal');
+
     if (completeBtn) completeBtn.addEventListener('click', function(){
-      var m = document.getElementById('completeModal');
-      if (m) new bootstrap.Modal(m).show();
+      if (signatureModalEl && bootstrap && bootstrap.Modal) new bootstrap.Modal(signatureModalEl).show();
     });
     if (cancelBtn) cancelBtn.addEventListener('click', function(){
       var m = document.getElementById('cancelModal');
-      if (m) new bootstrap.Modal(m).show();
+      if (m && bootstrap && bootstrap.Modal) new bootstrap.Modal(m).show();
+    });
+    document.querySelectorAll('.attachment-signature-trigger').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (signatureModalEl && bootstrap && bootstrap.Modal) new bootstrap.Modal(signatureModalEl).show();
+      });
+    });
+    document.querySelectorAll('.attachments-modal-trigger').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (attachmentsModalEl && bootstrap && bootstrap.Modal) new bootstrap.Modal(attachmentsModalEl).show();
+      });
     });
   }
 
