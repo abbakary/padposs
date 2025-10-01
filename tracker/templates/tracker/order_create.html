@@ -124,7 +124,7 @@
               {{ form.priority }}
               {% if form.priority.errors %}<div class="text-danger f-12">{{ form.priority.errors|striptags }}</div>{% endif %}
             </div>
-            <div class="col-md-4">
+            <div class="col-md-4" id="vehicleFieldGroup">
               <label class="form-label">{{ form.vehicle.label }}</label>
               {{ form.vehicle }}
               {% if form.vehicle.errors %}<div class="text-danger f-12">{{ form.vehicle.errors|striptags }}</div>{% endif %}
@@ -149,10 +149,15 @@
       // Handle order type switching
       var typeEl = document.getElementById('{{ form.type.id_for_label }}') || document.querySelector('[name="{{ form.type.html_name }}"]');
       function updateSections(){
-        var t = (typeEl && (typeEl.value || typeEl.options && typeEl.options[typeEl.selectedIndex].value)) || '';
-        document.getElementById('section-service').style.display = (t==='service')? 'block':'none';
-        document.getElementById('section-sales').style.display = (t==='sales')? 'block':'none';
-        document.getElementById('section-inquiry').style.display = (t==='inquiry')? 'block':'none';
+        var t = (typeEl && (typeEl.value || (typeEl.options && typeEl.options[typeEl.selectedIndex] && typeEl.options[typeEl.selectedIndex].value))) || '';
+        var svc = document.getElementById('section-service');
+        var sal = document.getElementById('section-sales');
+        var inq = document.getElementById('section-inquiry');
+        if (svc) svc.style.display = (t==='service')? 'block':'none';
+        if (sal) sal.style.display = (t==='sales')? 'block':'none';
+        if (inq) inq.style.display = (t==='inquiry')? 'block':'none';
+        var veh = document.getElementById('vehicleFieldGroup');
+        if (veh) veh.style.display = (t==='inquiry')? 'none':'block';
       }
       if(typeEl){ typeEl.addEventListener('change', updateSections); updateSections(); }
 
