@@ -3750,7 +3750,7 @@ def organization_management(request: HttpRequest):
     else:
         start_date = today - timezone.timedelta(days=180)
 
-    base = Customer.objects.filter(customer_type__in=org_types)
+    base = scope_queryset(Customer.objects.filter(customer_type__in=org_types), request.user, request)
     if q:
         base = base.filter(Q(full_name__icontains=q) | Q(phone__icontains=q) | Q(email__icontains=q) | Q(organization_name__icontains=q) | Q(code__icontains=q))
 
@@ -3829,7 +3829,7 @@ def organization_export(request: HttpRequest):
     else:
         start_date = today - timezone.timedelta(days=180)
 
-    base = Customer.objects.filter(customer_type__in=org_types)
+    base = scope_queryset(Customer.objects.filter(customer_type__in=org_types), request.user, request)
     if q:
         base = base.filter(Q(full_name__icontains=q) | Q(phone__icontains=q) | Q(email__icontains=q) | Q(organization_name__icontains=q) | Q(code__icontains=q))
     qs = base.annotate(
