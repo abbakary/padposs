@@ -22,7 +22,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.exceptions import ValidationError
 from .models import Profile, Customer, Order, Vehicle, InventoryItem, CustomerNote, Brand, Branch, OrderAttachment
 from django.core.paginator import Paginator
-from .utils import add_audit_log, get_audit_logs, clear_audit_logs, scope_queryset
+from .utils import add_audit_log, get_audit_logs, clear_audit_logs, scope_queryset, get_user_branch
 from datetime import datetime, timedelta
 
 
