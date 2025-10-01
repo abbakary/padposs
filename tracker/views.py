@@ -854,10 +854,12 @@ def customer_register(request: HttpRequest):
                     normalized_phone = re.sub(r'\D', '', phone) if phone else ''
                     
                     # Check for existing customers with similar name and phone
+                    from .utils import get_user_branch
                     existing_customers = Customer.objects.filter(
-                        full_name__iexact=full_name
+                        full_name__iexact=full_name,
+                        branch=get_user_branch(request.user)
                     )
-                    
+
                     # Check each potential match for phone number similarity
                     for customer in existing_customers:
                         # Normalize stored phone number for comparison
@@ -914,7 +916,8 @@ def customer_register(request: HttpRequest):
                 try:
                     import re
                     normalized_phone = re.sub(r'\D', '', phone) if phone else ''
-                    existing_customers = Customer.objects.filter(full_name__iexact=full_name)
+                    from .utils import get_user_branch
+                    existing_customers = Customer.objects.filter(full_name__iexact=full_name, branch=get_user_branch(request.user))
                     for customer in existing_customers:
                         stored_phone = re.sub(r'\D', '', str(customer.phone or ''))
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:

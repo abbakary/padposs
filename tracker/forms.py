@@ -54,7 +54,7 @@ class CustomerBasicForm(forms.Form):
             'class': 'form-control',
             'placeholder': '+255 XXX XXX XXX or 0X XXX XXX XXX',
             'required': True,
-            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
             'title': 'Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX',
             'maxlength': '16'
         })
@@ -64,7 +64,7 @@ class CustomerBasicForm(forms.Form):
         value = (self.cleaned_data.get('phone') or '').strip()
         # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
         intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-        local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+        local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
         if not (intl.match(value) or local.match(value)):
             raise forms.ValidationError('Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value
@@ -109,7 +109,7 @@ class CustomerStep1Form(forms.Form):
             'class': 'form-control',
             'placeholder': '+255 XXX XXX XXX or 0X XXX XXX XXX',
             'required': True,
-            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
             'title': 'Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX',
             'maxlength': '16'
         })
@@ -120,7 +120,7 @@ class CustomerStep1Form(forms.Form):
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '+255 XXX XXX XXX (if different from phone)',
-            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+            'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
             'title': 'Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX',
             'maxlength': '16'
         })
@@ -130,7 +130,7 @@ class CustomerStep1Form(forms.Form):
         value = (self.cleaned_data.get('phone') or '').strip()
         # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
         intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-        local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+        local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
         if not (intl.match(value) or local.match(value)):
             raise forms.ValidationError('Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value
@@ -140,7 +140,7 @@ class CustomerStep1Form(forms.Form):
         if value:
             # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
             intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-            local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+            local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
             if not (intl.match(value) or local.match(value)):
                 raise forms.ValidationError('Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value or None
@@ -220,17 +220,21 @@ class CustomerStep1Form(forms.Form):
             if not cleaned.get('personal_subtype'):
                 self.add_error('personal_subtype', 'Please specify if you are the owner or driver')
         
-        # Duplicate checks (exact match; no normalization)
+        # Duplicate checks (exact match) scoped to current branch when available.
+        # Creation flow also performs branch-scoped duplicate checks in the view.
         try:
+            from .models import Customer
+            branch = getattr(getattr(self, 'instance', None), 'branch', None)
+            if not branch:
+                return cleaned
             full_name = (cleaned.get('full_name') or '').strip()
             phone = (cleaned.get('phone') or '').strip()
             org = cleaned.get('organization_name')
             tax = cleaned.get('tax_number')
-            from .models import Customer
-            qs = Customer.objects.all()
+            qs = Customer.objects.filter(branch=branch)
             if customer_type == 'personal':
                 if full_name and phone and qs.filter(full_name=full_name, phone=phone, customer_type='personal').exists():
-                    self.add_error(None, 'A personal customer with this full name and phone already exists.')
+                    self.add_error(None, 'A personal customer with this full name and phone already exists in this branch.')
             elif customer_type in ['government', 'ngo', 'company']:
                 if full_name and phone and org and tax and qs.filter(
                     full_name=full_name,
@@ -239,11 +243,10 @@ class CustomerStep1Form(forms.Form):
                     tax_number=tax,
                     customer_type=customer_type,
                 ).exists():
-                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists.')
+                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists in this branch.')
         except Exception:
-            # Do not block the form on DB issues; DB constraint still protects uniqueness at save
             pass
-        
+
         return cleaned
 
 class CustomerStep2Form(forms.Form):
@@ -293,14 +296,14 @@ class CustomerEditForm(forms.ModelForm):
             'phone': forms.TextInput(attrs={
                 'class': 'form-control', 
                 'placeholder': '+255 XXX XXX XXX or 0X XXX XXX XXX',
-                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
                 'title': 'Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX',
                 'maxlength': '16'
             }),
             'whatsapp': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '+255 XXX XXX XXX (if different from phone)',
-                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\s?\d{3}\s?\d{3}\s?\d{3})$',
+                'pattern': '^(\+255\s?\d{3}\s?\d{3}\s?\d{3}|0[67]\d{2}\s?\d{3}\s?\d{3})$',
                 'title': 'Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX',
                 'maxlength': '16'
             }),
@@ -330,7 +333,7 @@ class CustomerEditForm(forms.ModelForm):
         value = (self.cleaned_data.get('phone') or '').strip()
         # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
         intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-        local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+        local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
         if not (intl.match(value) or local.match(value)):
             raise forms.ValidationError('Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value
@@ -340,7 +343,7 @@ class CustomerEditForm(forms.ModelForm):
         if value:
             # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
             intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-            local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+            local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
             if not (intl.match(value) or local.match(value)):
                 raise forms.ValidationError('Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value or None
@@ -359,7 +362,7 @@ class CustomerEditForm(forms.ModelForm):
             if not cleaned.get('personal_subtype'):
                 self.add_error('personal_subtype', 'Please specify if you are the owner or driver')
         
-        # Duplicate checks (exact match; no normalization)
+        # Duplicate checks (exact match) restricted to the same branch
         try:
             full_name = (cleaned.get('full_name') or '').strip()
             phone = (cleaned.get('phone') or '').strip()
@@ -367,9 +370,12 @@ class CustomerEditForm(forms.ModelForm):
             tax = cleaned.get('tax_number')
             from .models import Customer
             qs = Customer.objects.all()
+            b = getattr(self.instance, 'branch', None)
+            if b:
+                qs = qs.filter(branch=b)
             if customer_type == 'personal':
                 if full_name and phone and qs.filter(full_name=full_name, phone=phone, customer_type='personal').exists():
-                    self.add_error(None, 'A personal customer with this full name and phone already exists.')
+                    self.add_error(None, 'A personal customer with this full name and phone already exists in this branch.')
             elif customer_type in ['government', 'ngo', 'company']:
                 if full_name and phone and org and tax and qs.filter(
                     full_name=full_name,
@@ -378,11 +384,10 @@ class CustomerEditForm(forms.ModelForm):
                     tax_number=tax,
                     customer_type=customer_type,
                 ).exists():
-                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists.')
+                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists in this branch.')
         except Exception:
-            # Do not block the form on DB issues; DB constraint still protects uniqueness at save
             pass
-        
+
         return cleaned
 
 class BrandForm(forms.ModelForm):
