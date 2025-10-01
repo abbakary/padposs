@@ -307,20 +307,13 @@
     {% if order.status != 'completed' and order.status != 'cancelled' and order.type != 'inquiry' %}
     <div class="mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
-        <small class="text-muted">Digital Signature</small>
+        <small class="text-muted">Signature Capture</small>
+        <button type="button" class="btn btn-sm btn-outline-success attachment-signature-trigger">
+          <i class="fa fa-pen me-1"></i>Open Signature Pad
+        </button>
       </div>
-      <div class="border rounded bg-light p-2">
-        <form id="inlineSignForm" method="post" action="{% url 'tracker:complete_order' pk=order.id %}">
-          {% csrf_token %}
-          <input type="hidden" name="signature_data" id="signatureDataInline">
-          <div class="position-relative" style="height:220px;">
-            <canvas id="signaturePadInline" class="w-100 h-100" style="background:#fff; border:1px dashed #dee2e6; border-radius:.25rem;"></canvas>
-          </div>
-          <div class="d-flex justify-content-between align-items-center mt-2">
-            <small class="text-muted">Sign here using the external pad (USB) or touch/mouse.</small>
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearInlineSignature"><i class="fa fa-eraser me-1"></i>Clear</button>
-          </div>
-        </form>
+      <div class="border rounded bg-light p-3">
+        <p class="small text-muted mb-0">Collect the customer signature when they are ready to leave. Upload all necessary attachments first, then open the signature pad to complete the order.</p>
       </div>
     </div>
     {% endif %}
@@ -366,12 +359,12 @@
     
     <!-- Individual Attachments Display - FIXED -->
     <div class="row g-3">
-      {% if order.signature_file %}
       <div class="col-md-6">
-        <div class="text-center p-3 border rounded">
+        <div class="text-center p-3 border rounded h-100">
           <i class="fa fa-signature text-primary mb-2 d-block"></i>
           <small class="text-muted d-block mb-2">Digital Signature</small>
-          <img src="{{ order.signature_file.url }}" alt="Signature" class="img-fluid rounded shadow-sm" style="max-height: 150px;">
+          {% if order.signature_file %}
+          <img src="{{ order.signature_file.url }}" alt="Signature" class="img-fluid rounded shadow-sm mb-2" style="max-height: 150px;">
           {% if order.signed_by %}
           <div class="mt-2">
             <small class="text-muted">Signed by: {{ order.signed_by.get_full_name|default:order.signed_by.username }}</small>
@@ -380,15 +373,19 @@
             {% endif %}
           </div>
           {% endif %}
+          {% else %}
+          <p class="text-muted mb-3">No signature captured yet. Capture the signature when the customer is ready to leave.</p>
+          <button type="button" class="btn btn-outline-success btn-sm attachment-signature-trigger">
+            <i class="fa fa-pen me-1"></i>Capture Signature
+          </button>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
-      
-      {% if order.completion_attachment %}
       <div class="col-md-6">
-        <div class="text-center p-3 border rounded">
+        <div class="text-center p-3 border rounded h-100">
           <i class="fa fa-file text-success mb-2 d-block"></i>
           <small class="text-muted d-block mb-2">Completion Attachment</small>
+          {% if order.completion_attachment %}
           {% with fname=order.completion_attachment.name|lower url=order.completion_attachment.url %}
             {% if fname and '.jpg' in fname or fname and '.jpeg' in fname or fname and '.png' in fname or fname and '.gif' in fname or fname and '.webp' in fname %}
               <img src="{{ url }}" alt="Attachment" class="img-fluid rounded shadow-sm" style="max-height: 220px;">
@@ -422,18 +419,14 @@
               ({{ order.completion_attachment.size|filesizeformat }})
             </div>
           {% endwith %}
+          {% else %}
+          <p class="text-muted mb-3">No completion document uploaded. Use Add Attachments to include supporting files before signing.</p>
+          <button type="button" class="btn btn-outline-primary btn-sm attachments-modal-trigger">
+            <i class="fa fa-paperclip me-1"></i>Add Completion Document
+          </button>
+          {% endif %}
         </div>
       </div>
-      {% endif %}
-      
-      {% if not order.signature_file and not order.completion_attachment %}
-      <div class="col-12">
-        <div class="text-center py-4 text-muted">
-          <i class="fa fa-inbox fa-2x mb-2 d-block"></i>
-          <p class="mb-0">No attachments available</p>
-        </div>
-      </div>
-      {% endif %}
     </div>
   </div>
 </div>
@@ -892,17 +885,40 @@
 <script>
 (function(){
   var bootstrap = window.bootstrap || (function(){ try { return window['bootstrap']; } catch(e){ return undefined; } })();
+  function showModal(el){
+    if (!el) return;
+    if (bootstrap && typeof bootstrap.Modal === 'function') {
+      new bootstrap.Modal(el).show();
+      return;
+    }
+    el.classList.add('show');
+    el.style.display = 'block';
+    el.removeAttribute('aria-hidden');
+    el.setAttribute('aria-modal', 'true');
+  }
   // Initialize action buttons to trigger modals
   function initializeFormToggles() {
     const completeBtn = document.getElementById('showCompleteBtn');
     const cancelBtn = document.getElementById('showCancelBtn');
+    const signatureModalEl = document.getElementById('completeModal');
+    const attachmentsModalEl = document.getElementById('attachmentModal');
+    const cancelModalEl = document.getElementById('cancelModal');
+
     if (completeBtn) completeBtn.addEventListener('click', function(){
-      var m = document.getElementById('completeModal');
-      if (m) new bootstrap.Modal(m).show();
+      showModal(signatureModalEl);
     });
     if (cancelBtn) cancelBtn.addEventListener('click', function(){
-      var m = document.getElementById('cancelModal');
-      if (m) new bootstrap.Modal(m).show();
+      showModal(cancelModalEl);
+    });
+    document.querySelectorAll('.attachment-signature-trigger').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        showModal(signatureModalEl);
+      });
+    });
+    document.querySelectorAll('.attachments-modal-trigger').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        showModal(attachmentsModalEl);
+      });
     });
   }
 
@@ -948,6 +964,18 @@
     let hasSignature = false;
     let currentFileUrl = null;
     let currentCanvas = null;
+    const externalHooks = {
+      begin: null,
+      move: null,
+      end: null,
+      ensureSurface: null,
+      getCanvas: function() {
+        return currentCanvas;
+      },
+      isDrawing: function() {
+        return drawing;
+      }
+    };
 
     function clearPreview() {
       if (!previewCtx || !previewCanvas) return;
@@ -991,6 +1019,45 @@
       let lastX = 0;
       let lastY = 0;
 
+      function normalizedToCanvas(nx, ny) {
+        if (!canvas) {
+          return { x: 0, y: 0 };
+        }
+        const clampedX = Math.min(Math.max(typeof nx === 'number' ? nx : 0, 0), 1);
+        const clampedY = Math.min(Math.max(typeof ny === 'number' ? ny : 0, 0), 1);
+        return {
+          x: clampedX * canvas.width,
+          y: clampedY * canvas.height
+        };
+      }
+
+      function beginStrokeAt(x, y, options) {
+        drawing = true;
+        lastX = x;
+        lastY = y;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        if (options && options.fromExternal) {
+          showSignatureTools();
+        }
+      }
+
+      function continueStrokeTo(x, y) {
+        if (!drawing) return;
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        drawToPreview(lastX, lastY, x, y);
+        lastX = x;
+        lastY = y;
+        hasSignature = true;
+      }
+
+      function endStroke() {
+        if (!drawing) return;
+        drawing = false;
+        ctx.closePath();
+      }
+
       function scaleToPreview(x, y) {
         if (!previewCanvas) return { x, y, weight: 1 };
         const scaleX = previewCanvas.width / canvas.width;
@@ -1022,12 +1089,15 @@
         let clientX;
         let clientY;
 
-        if (e.touches && e.touches[0]) {
+        if (e && e.touches && e.touches[0]) {
           clientX = e.touches[0].clientX;
           clientY = e.touches[0].clientY;
-        } else {
+        } else if (e) {
           clientX = e.clientX;
           clientY = e.clientY;
+        } else {
+          clientX = rect.left;
+          clientY = rect.top;
         }
 
         return {
@@ -1037,32 +1107,22 @@
       }
 
       function startDrawing(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        drawing = true;
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         const pos = getCanvasPosition(e);
-        lastX = pos.x;
-        lastY = pos.y;
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
+        beginStrokeAt(pos.x, pos.y);
       }
 
       function draw(e) {
         if (!drawing) return;
-        e.preventDefault();
-        e.stopPropagation();
-
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
         const pos = getCanvasPosition(e);
-        const startX = lastX;
-        const startY = lastY;
-
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-        drawToPreview(startX, startY, pos.x, pos.y);
-
-        lastX = pos.x;
-        lastY = pos.y;
-        hasSignature = true;
+        continueStrokeTo(pos.x, pos.y);
       }
 
       function stopDrawing(e) {
@@ -1071,8 +1131,7 @@
           e.preventDefault();
           e.stopPropagation();
         }
-        drawing = false;
-        ctx.closePath();
+        endStroke();
       }
 
       const bindings = [
@@ -1094,6 +1153,26 @@
         canvas.removeEventListener(event, handler, true);
         canvas.addEventListener(event, handler, { capture: true, passive: false });
       });
+
+      externalHooks.begin = function(normX, normY) {
+        if (!currentCanvas || currentCanvas !== canvas) return;
+        const coords = normalizedToCanvas(normX, normY);
+        beginStrokeAt(coords.x, coords.y, { fromExternal: true });
+      };
+      externalHooks.move = function(normX, normY) {
+        if (!currentCanvas || currentCanvas !== canvas) return;
+        if (!drawing) {
+          externalHooks.begin(normX, normY);
+          return;
+        }
+        const coords = normalizedToCanvas(normX, normY);
+        continueStrokeTo(coords.x, coords.y);
+      };
+      externalHooks.end = function() {
+        if (!currentCanvas || currentCanvas !== canvas) return;
+        if (!drawing) return;
+        endStroke();
+      };
     }
 
     function showSignatureTools() {
@@ -1296,27 +1375,6 @@
         var btn = document.getElementById('signAndCompleteBtn');
         if (btn) btn.click();
       });
-
-      var inlineCanvas = document.getElementById('signaturePadInline');
-      var inlineForm = document.getElementById('inlineSignForm');
-      var inlineHidden = document.getElementById('signatureDataInline');
-      var inlineClear = document.getElementById('clearInlineSignature');
-      if (inlineCanvas && inlineForm && inlineHidden) {
-        var ictx = inlineCanvas.getContext('2d');
-        function resizeInline(){ inlineCanvas.width = inlineCanvas.clientWidth; inlineCanvas.height = inlineCanvas.clientHeight; }
-        resizeInline();
-        window.addEventListener('resize', resizeInline);
-        ictx.lineWidth = 2.5; ictx.lineCap = 'round'; ictx.lineJoin = 'round'; ictx.strokeStyle = '#000';
-        var drawingInline=false, lastIX=0, lastIY=0, hasSig=false;
-        function pos(e){ var r=inlineCanvas.getBoundingClientRect(); var cx=(e.touches?e.touches[0].clientX:e.clientX)||0; var cy=(e.touches?e.touches[0].clientY:e.clientY)||0; return {x:cx-r.left,y:cy-r.top}; }
-        function start(e){ e.preventDefault(); drawingInline=true; var p=pos(e); lastIX=p.x; lastIY=p.y; ictx.beginPath(); ictx.moveTo(lastIX,lastIY); }
-        function move(e){ if(!drawingInline) return; e.preventDefault(); var p=pos(e); ictx.lineTo(p.x,p.y); ictx.stroke(); lastIX=p.x; lastIY=p.y; hasSig=true; }
-        function stop(){ if(!drawingInline) return; drawingInline=false; ictx.closePath(); if(hasSig){ try{ inlineHidden.value = inlineCanvas.toDataURL('image/png'); inlineForm.submit(); }catch(err){} } }
-        ;['mousedown','touchstart','pointerdown'].forEach(function(ev){ inlineCanvas.addEventListener(ev,start,{passive:false}); });
-        ;['mousemove','touchmove','pointermove'].forEach(function(ev){ inlineCanvas.addEventListener(ev,move,{passive:false}); });
-        ;['mouseup','mouseout','touchend','pointerup'].forEach(function(ev){ inlineCanvas.addEventListener(ev,stop,{passive:false}); });
-        if (inlineClear) inlineClear.addEventListener('click', function(){ ictx.clearRect(0,0,inlineCanvas.width,inlineCanvas.height); hasSig=false; });
-      }
 
       var completeModalEl = document.getElementById('completeModal');
       if (completeModalEl) {
