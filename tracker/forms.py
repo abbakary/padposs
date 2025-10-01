@@ -220,17 +220,21 @@ class CustomerStep1Form(forms.Form):
             if not cleaned.get('personal_subtype'):
                 self.add_error('personal_subtype', 'Please specify if you are the owner or driver')
         
-        # Duplicate checks (exact match; no normalization)
+        # Duplicate checks (exact match) scoped to current branch when available.
+        # Creation flow also performs branch-scoped duplicate checks in the view.
         try:
+            from .models import Customer
+            branch = getattr(getattr(self, 'instance', None), 'branch', None)
+            if not branch:
+                return cleaned
             full_name = (cleaned.get('full_name') or '').strip()
             phone = (cleaned.get('phone') or '').strip()
             org = cleaned.get('organization_name')
             tax = cleaned.get('tax_number')
-            from .models import Customer
-            qs = Customer.objects.all()
+            qs = Customer.objects.filter(branch=branch)
             if customer_type == 'personal':
                 if full_name and phone and qs.filter(full_name=full_name, phone=phone, customer_type='personal').exists():
-                    self.add_error(None, 'A personal customer with this full name and phone already exists.')
+                    self.add_error(None, 'A personal customer with this full name and phone already exists in this branch.')
             elif customer_type in ['government', 'ngo', 'company']:
                 if full_name and phone and org and tax and qs.filter(
                     full_name=full_name,
@@ -239,11 +243,10 @@ class CustomerStep1Form(forms.Form):
                     tax_number=tax,
                     customer_type=customer_type,
                 ).exists():
-                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists.')
+                    self.add_error(None, 'An organizational customer with the same name, phone, organization and tax number already exists in this branch.')
         except Exception:
-            # Do not block the form on DB issues; DB constraint still protects uniqueness at save
             pass
-        
+
         return cleaned
 
 class CustomerStep2Form(forms.Form):
