@@ -3178,8 +3178,9 @@ def api_inventory_stock(request: HttpRequest):
 @login_required
 def vehicle_add(request: HttpRequest, customer_id: int):
     """Add a new vehicle for a customer"""
-    customer = get_object_or_404(Customer, pk=customer_id)
-    
+    customers_qs_vadd = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_vadd, pk=customer_id)
+
     if request.method == 'POST':
         form = VehicleForm(request.POST)
         if form.is_valid():
