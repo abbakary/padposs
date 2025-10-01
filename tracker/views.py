@@ -2347,7 +2347,13 @@ def order_delete(request: HttpRequest, pk: int):
 @login_required
 def customer_detail(request: HttpRequest, pk: int):
     customers_qs = scope_queryset(Customer.objects.all(), request.user, request)
-    customer = get_object_or_404(customers_qs, pk=pk)
+    try:
+        customer = customers_qs.get(pk=pk)
+    except Customer.DoesNotExist:
+        # Customer either doesn't exist or is not accessible to this user.
+        messages.warning(request, "Customer not found or you don't have permission to view this customer.")
+        return redirect('tracker:customers_list')
+
     orders = customer.orders.all().order_by('-created_at')
     vehicles = customer.vehicles.all()
     notes = customer.note_entries.all().order_by('-created_at')
