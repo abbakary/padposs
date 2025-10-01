@@ -2568,6 +2568,11 @@ def add_order_attachments(request: HttpRequest, pk: int):
 @login_required
 def delete_order_attachment(request: HttpRequest, att_id: int):
     att = get_object_or_404(OrderAttachment, pk=att_id)
+    # Enforce branch access via the attachment's order
+    allowed_orders = scope_queryset(Order.objects.all(), request.user, request)
+    if not allowed_orders.filter(pk=att.order_id).exists():
+        messages.error(request, 'You do not have permission to modify this attachment.')
+        return redirect('tracker:order_detail', pk=att.order_id)
     order_id = att.order_id
     try:
         att.delete()
