@@ -64,7 +64,7 @@ class CustomerBasicForm(forms.Form):
         value = (self.cleaned_data.get('phone') or '').strip()
         # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
         intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-        local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+        local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
         if not (intl.match(value) or local.match(value)):
             raise forms.ValidationError('Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value
@@ -130,7 +130,7 @@ class CustomerStep1Form(forms.Form):
         value = (self.cleaned_data.get('phone') or '').strip()
         # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
         intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-        local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+        local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
         if not (intl.match(value) or local.match(value)):
             raise forms.ValidationError('Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value
@@ -140,7 +140,7 @@ class CustomerStep1Form(forms.Form):
         if value:
             # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
             intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-            local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+            local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
             if not (intl.match(value) or local.match(value)):
                 raise forms.ValidationError('Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value or None
@@ -330,7 +330,7 @@ class CustomerEditForm(forms.ModelForm):
         value = (self.cleaned_data.get('phone') or '').strip()
         # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
         intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-        local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+        local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
         if not (intl.match(value) or local.match(value)):
             raise forms.ValidationError('Enter a valid Tanzania phone number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value
@@ -340,7 +340,7 @@ class CustomerEditForm(forms.ModelForm):
         if value:
             # Tanzania format: +255 XXX XXX XXX or 0X XXX XXX XXX
             intl = re.compile(r'^\+255\s?\d{3}\s?\d{3}\s?\d{3}$')
-            local = re.compile(r'^0[67]\s?\d{3}\s?\d{3}\s?\d{3}$')
+            local = re.compile(r'^0[67]\d{2}\s?\d{3}\s?\d{3}$')
             if not (intl.match(value) or local.match(value)):
                 raise forms.ValidationError('Enter a valid Tanzania WhatsApp number: +255 XXX XXX XXX or 0X XXX XXX XXX')
         return value or None
