@@ -864,18 +864,30 @@ def customer_register(request: HttpRequest):
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
                             if normalized_phone in stored_phone or stored_phone in normalized_phone:
                                 if is_ajax:
-                                    # Include a flash flag in redirect for client-side navigation
-                                    dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    from .utils import get_user_branch
+                                    user_branch = get_user_branch(request.user)
+                                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
+                                    if can_access:
+                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    else:
+                                        dup_url = reverse('tracker:customers_list')
                                     return json_response(
-                                        False, 
-                                        form=form, 
+                                        False,
+                                        form=form,
                                         message=f'Customer already exists: {customer.full_name} ({customer.phone})',
                                         message_type='warning',
                                         redirect_url=dup_url
                                     )
                                 messages.warning(request, f'Customer already exists: {customer.full_name} ({customer.phone})')
-                                detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                return redirect(detail_url)
+                                from .utils import get_user_branch
+                                user_branch = get_user_branch(request.user)
+                                can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
+                                if can_access:
+                                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    return redirect(detail_url)
+                                else:
+                                    messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
+                                    return redirect('tracker:customers_list')
                     
                         # If quick save, create the customer immediately
                         from .utils import get_user_branch
@@ -919,7 +931,13 @@ def customer_register(request: HttpRequest):
                         if len(normalized_phone) >= 6 and len(stored_phone) >= 6:
                             if normalized_phone in stored_phone or stored_phone in normalized_phone:
                                 if is_ajax:
-                                    dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    from .utils import get_user_branch
+                                    user_branch = get_user_branch(request.user)
+                                    can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
+                                    if can_access:
+                                        dup_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    else:
+                                        dup_url = reverse('tracker:customers_list')
                                     return json_response(
                                         False,
                                         form=form,
@@ -928,8 +946,15 @@ def customer_register(request: HttpRequest):
                                         redirect_url=dup_url
                                     )
                                 messages.info(request, f"Customer '{customer.full_name}' already exists. Redirected to their profile.")
-                                detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
-                                return redirect(detail_url)
+                                from .utils import get_user_branch
+                                user_branch = get_user_branch(request.user)
+                                can_access = getattr(request.user, 'is_superuser', False) or (user_branch is not None and getattr(customer, 'branch_id', None) == user_branch.id)
+                                if can_access:
+                                    detail_url = reverse("tracker:customer_detail", kwargs={'pk': customer.id}) + "?flash=existing_customer"
+                                    return redirect(detail_url)
+                                else:
+                                    messages.info(request, 'This customer exists but belongs to a different branch. You have been redirected to the customers list.')
+                                    return redirect('tracker:customers_list')
                 except Exception:
                     pass
 
