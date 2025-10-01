@@ -178,17 +178,13 @@ def dashboard(request: HttpRequest):
         # Update status_counts to ensure 'completed' key exists
         status_counts['completed'] = completed_orders
         
-        # Also count completed today for dashboard - check all completed orders for today
-        today_date = timezone.localdate()
-        
-        # Count completed orders by completed_at date (if set) or created_at date
-        completed_today_count = orders_qs.filter(
-            status="completed"
-        ).extra(
-            where=[
-                "(completed_at IS NOT NULL AND DATE(completed_at) = %s) OR (completed_at IS NULL AND DATE(created_at) = %s)"
-            ],
-            params=[today_date, today_date]
+        # Also count completed today - MySQL compatible using range
+        from .utils.mysql_compat import get_date_range
+        today_date = timezone.now().date()
+        start_dt, end_dt = get_date_range(today_date)
+        completed_today_count = orders_qs.filter(status="completed").filter(
+            Q(completed_at__gte=start_dt, completed_at__lte=end_dt) |
+            Q(completed_at__isnull=True, created_at__gte=start_dt, created_at__lte=end_dt)
         ).count()
 
         # New customers this month - MySQL compatible
@@ -3787,7 +3783,7 @@ def organization_management(request: HttpRequest):
     total_org = sum(counts.values()) if counts else 0
 
     # Charts
-    orders_scope = Order.objects.filter(customer__in=base, created_at__date__gte=start_date)
+    orders_scope = scope_queryset(Order.objects.filter(customer__in=base, created_at__date__gte=start_date), request.user, request)
     if status == 'returning':
         orders_scope = orders_scope.filter(customer__total_visits__gt=1)
     type_dist = {r['type']: r['c'] for r in orders_scope.values('type').annotate(c=Count('id'))}
@@ -4253,7 +4249,7 @@ def reports_advanced(request: HttpRequest):
     end_dt = timezone.make_aware(datetime.combine(end_date + timedelta(days=1), dt_time.min), tz)
 
     # Reuse filtered querysets for consistency
-    qs = Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
+    qs = scope_queryset(Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt), request.user, request)
     cqs = scope_queryset(Customer.objects.filter(registration_date__gte=start_dt, registration_date__lt=end_dt), request.user, request)
 
     # Base statistics
@@ -4299,7 +4295,7 @@ def reports_advanced(request: HttpRequest):
         stats['service_percentage'] = stats['sales_percentage'] = stats['inquiry_percentage'] = 0
 
     # Real trend data per selected period
-    qs = Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt)
+    qs = scope_queryset(Order.objects.filter(created_at__gte=start_dt, created_at__lt=end_dt), request.user, request)
     if period == 'daily':
         from django.db.models.functions import ExtractHour
         trend_map = {int(r['h'] or 0): r['c'] for r in qs.annotate(h=ExtractHour('created_at')).values('h').annotate(c=Count('id'))}
@@ -4322,7 +4318,7 @@ def reports_advanced(request: HttpRequest):
             'values': [
                 qs.filter(status='created').count(),
                 qs.filter(status='in_progress').count(),
-                Order.objects.filter(completed_at__gte=start_dt, completed_at__lt=end_dt, status='completed').count(),
+                scope_queryset(Order.objects.filter(completed_at__gte=start_dt, completed_at__lt=end_dt, status='completed'), request.user, request).count(),
                 qs.filter(status='cancelled').count(),
             ]
         },
@@ -4964,7 +4960,7 @@ def analytics_service(request: HttpRequest):
     # Previous period (same length right before start_date)
     prev_end = start_date - timezone.timedelta(days=1)
     prev_start = prev_end - timezone.timedelta(days=trend_days - 1)
-    prev_qs = Order.objects.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end)
+    prev_qs = scope_queryset(Order.objects.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end), request.user, request)
     def pct_change(curr, prev):
         return round(((curr - prev) * 100.0) / (prev if prev else 1), 1)
     prev_by_type = {r["type"] or "": r["c"] for r in prev_qs.values("type").annotate(c=Count("id"))}
