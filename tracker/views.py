@@ -228,9 +228,9 @@ def dashboard(request: HttpRequest):
             status_percentages[f"{s}_percent"] = (c / total_orders * 100) if total_orders > 0 else 0
 
         # Get inventory metrics
-        from django.db.models import Sum, Q
+        from django.db.models import Sum
         from tracker.models import InventoryItem
-        
+
         # Total inventory items count
         total_inventory_items = InventoryItem.objects.count()
         
