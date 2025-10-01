@@ -3202,8 +3202,9 @@ def vehicle_add(request: HttpRequest, customer_id: int):
 @login_required
 def customer_delete(request: HttpRequest, pk: int):
     """Delete a customer and all associated data"""
-    customer = get_object_or_404(Customer, pk=pk)
-    
+    customers_qs_del = scope_queryset(Customer.objects.all(), request.user, request)
+    customer = get_object_or_404(customers_qs_del, pk=pk)
+
     if request.method == 'POST':
         # Log the deletion before actually deleting
         try:
