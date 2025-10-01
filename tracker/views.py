@@ -1247,13 +1247,7 @@ def customer_register(request: HttpRequest):
                         estimated_duration=int(estimated_duration) if estimated_duration else None
                     )
 
-                    # Update customer status and visit metrics
-                    now_ts = timezone.now()
-                    c.arrival_time = now_ts
-                    c.current_status = 'arrived'
-                    c.last_visit = now_ts
-                    c.total_visits = (c.total_visits or 0) + 1
-                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
+
                     
                 elif intent == "inquiry":
                     # Get data from step 3 session
@@ -1279,13 +1273,7 @@ def customer_register(request: HttpRequest):
                         follow_up_date=followup_date if followup_date else None
                     )
 
-                    # Update customer status and visit metrics
-                    now_ts = timezone.now()
-                    c.arrival_time = now_ts
-                    c.current_status = 'arrived'
-                    c.last_visit = now_ts
-                    c.total_visits = (c.total_visits or 0) + 1
-                    c.save(update_fields=['arrival_time','current_status','last_visit','total_visits'])
+
                 # Update customer visit/arrival status for returning tracking
                 try:
                     now_ts = timezone.now()
