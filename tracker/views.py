@@ -2486,7 +2486,8 @@ def complete_order(request: HttpRequest, pk: int):
 @login_required
 def cancel_order(request: HttpRequest, pk: int):
     """Cancel an order with a required reason."""
-    o = get_object_or_404(Order, pk=pk)
+    orders_qs4 = scope_queryset(Order.objects.all(), request.user, request)
+    o = get_object_or_404(orders_qs4, pk=pk)
     if request.method != 'POST':
         return redirect('tracker:order_detail', pk=o.id)
     # Disallow cancelling inquiries — they are auto-completed on creation
