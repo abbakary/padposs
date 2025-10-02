@@ -4935,7 +4935,7 @@ def analytics_service(request: HttpRequest):
     from django.db.models import Count
     from django.db.models.functions import TruncDate, Lower, Trim
     import json
-    
+
     # Filters
     f_from = request.GET.get("from")
     f_to = request.GET.get("to")
@@ -4974,29 +4974,49 @@ def analytics_service(request: HttpRequest):
     qs = scope_queryset(Order.objects.all().select_related("customer"), request.user, request)
     qs = qs.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
 
-    # Counts by type and status
-    by_type = {r["type"] or "": r["c"] for r in qs.values("type").annotate(c=Count("id"))}
+    # Helper to normalize legacy/variant types to canonical buckets
+    def norm_type(t: str) -> str:
+        t = (t or '').strip().lower()
+        if t in ("consultation", "inquiries"):
+            return "inquiry"
+        if t in ("sales", "service", "inquiry"):
+            return t
+        return t or ""
+
+    # Counts by type (normalized) and status
+    raw_by_type = {r["type"] or "": r["c"] for r in qs.values("type").annotate(c=Count("id"))}
+    by_type = {"sales": 0, "service": 0, "inquiry": 0}
+    for t, c in raw_by_type.items():
+        by_type[norm_type(t)] = by_type.get(norm_type(t), 0) + int(c or 0)
     by_status = {r["status"] or "": r["c"] for r in qs.values("status").annotate(c=Count("id"))}
 
-    # Status by type matrix for stacked chart
+    # All-time (branch-scoped) totals to match dashboard
+    all_qs = scope_queryset(Order.objects.all().select_related("customer"), request.user, request)
+    raw_by_type_all = {r["type"] or "": r["c"] for r in all_qs.values("type").annotate(c=Count("id"))}
+    by_type_all = {"sales": 0, "service": 0, "inquiry": 0}
+    for t, c in raw_by_type_all.items():
+        by_type_all[norm_type(t)] = by_type_all.get(norm_type(t), 0) + int(c or 0)
+
+    # Status by type matrix for stacked chart (normalize type)
     status_order = ["created", "in_progress", "completed", "cancelled"]
     type_order = ["sales", "service", "inquiry"]
-    status_by_app = { (r["type"] or "", r["status"] or ""): r["c"] for r in qs.values("type", "status").annotate(c=Count("id")) }
+    raw_status = {
+        (norm_type(r["type"] or ""), r["status"] or ""): r["c"]
+        for r in qs.values("type", "status").annotate(c=Count("id"))
+    }
     status_series = [
         {
             "name": t.title(),
-            "data": [status_by_app.get((t, s), 0) for s in status_order],
+            "data": [raw_status.get((t, s), 0) for s in status_order],
         }
         for t in type_order
     ]
 
-    # Trend data per day by type
+    # Trend data per day by type (normalize type)
     trend_days = (end_date - start_date).days + 1
     trend_labels = [(start_date + timezone.timedelta(days=i)).strftime("%b %d") for i in range(trend_days)]
-    trend_map = {
-        (row["day"], row["type"]): row["c"]
-        for row in qs.annotate(day=TruncDate("created_at")).values("day", "type").annotate(c=Count("id"))
-    }
+    trend_rows = qs.annotate(day=TruncDate("created_at")).values("day", "type").annotate(c=Count("id"))
+    trend_map = { (row["day"], norm_type(row["type"])): row["c"] for row in trend_rows }
     trend_series = []
     for t in type_order:
         values = [trend_map.get((start_date + timezone.timedelta(days=i), t), 0) for i in range(trend_days)]
@@ -5005,7 +5025,6 @@ def analytics_service(request: HttpRequest):
     # Sales breakdowns (normalize brand and tire types)
     sales_qs = qs.filter(type="sales")
     from django.db.models.functions import Lower, Trim
-    # DB-side normalization to avoid case/space duplicates; fall back to 'Unknown' for blanks
     brands_norm = (
         sales_qs
         .annotate(_b=Lower(Trim('brand')))
@@ -5013,7 +5032,6 @@ def analytics_service(request: HttpRequest):
         .annotate(c=Count('id'))
         .order_by('-c', '_b')
     )
-    # Build labels/values aligned, with human-friendly labels (title-cased) and include top 12
     top_brand_items = []
     for row in brands_norm[:12]:
         key = row.get('_b') or ''
@@ -5039,22 +5057,21 @@ def analytics_service(request: HttpRequest):
     for row in sales_qs.values("tire_type"):
         key = _norm_tire_type(row.get("tire_type"))
         tire_counts[key] = tire_counts.get(key, 0) + 1
-    # Keep a consistent order
     tire_order = ["New", "Used", "Refurbished", "Unknown"]
     tire_types = {
         "labels": [k for k in tire_order if k in tire_counts],
         "values": [tire_counts[k] for k in tire_order if k in tire_counts],
     }
 
-    # Inquiry breakdowns
-    inquiry_qs = qs.filter(type="inquiry")
+    # Inquiry breakdowns (include legacy consultation)
+    inquiry_qs = qs.filter(type__in=["inquiry", "consultation"])
     inquiry_types_qs = inquiry_qs.values("inquiry_type").annotate(c=Count("id")).order_by("-c")
     inquiry_types = {
         "labels": [r["inquiry_type"] or "Other" for r in inquiry_types_qs],
         "values": [r["c"] for r in inquiry_types_qs],
     }
 
-    # Types pie
+    # Types pie (normalized)
     types_chart = {
         "labels": ["Sales", "Service", "Inquiries"],
         "values": [by_type.get("sales", 0), by_type.get("service", 0), by_type.get("inquiry", 0)],
@@ -5070,9 +5087,14 @@ def analytics_service(request: HttpRequest):
     prev_end = start_date - timezone.timedelta(days=1)
     prev_start = prev_end - timezone.timedelta(days=trend_days - 1)
     prev_qs = scope_queryset(Order.objects.filter(created_at__date__gte=prev_start, created_at__date__lte=prev_end), request.user, request)
+    prev_by_type_raw = {r["type"] or "": r["c"] for r in prev_qs.values("type").annotate(c=Count("id"))}
+    prev_by_type = {"sales": 0, "service": 0, "inquiry": 0}
+    for t, c in prev_by_type_raw.items():
+        prev_by_type[norm_type(t)] = prev_by_type.get(norm_type(t), 0) + int(c or 0)
+
     def pct_change(curr, prev):
         return round(((curr - prev) * 100.0) / (prev if prev else 1), 1)
-    prev_by_type = {r["type"] or "": r["c"] for r in prev_qs.values("type").annotate(c=Count("id"))}
+
     kpis = {
         "total_orders": total_orders,
         "total_tire_sales": total_sales,
@@ -5082,6 +5104,14 @@ def analytics_service(request: HttpRequest):
         "tire_sales_change": pct_change(total_sales, prev_by_type.get("sales", 0)),
         "car_service_change": pct_change(total_service, prev_by_type.get("service", 0)),
         "inquiry_change": pct_change(total_inquiries, prev_by_type.get("inquiry", 0)),
+    }
+
+    # All-time KPIs (match dashboard totals)
+    kpis_all = {
+        "total_orders": all_qs.count(),
+        "total_tire_sales": by_type_all.get("sales", 0),
+        "total_car_service": by_type_all.get("service", 0),
+        "total_inquiries": by_type_all.get("inquiry", 0),
     }
 
     charts = {
@@ -5102,6 +5132,7 @@ def analytics_service(request: HttpRequest):
         "by_type": by_type,
         "by_type_values_sum": total_orders,
         "kpis": kpis,
+        "kpis_all": kpis_all,
         "charts_json": json.dumps(charts),
     }
     return render(request, "tracker/analytics_service.html", context)
