@@ -4990,6 +4990,13 @@ def analytics_service(request: HttpRequest):
         by_type[norm_type(t)] = by_type.get(norm_type(t), 0) + int(c or 0)
     by_status = {r["status"] or "": r["c"] for r in qs.values("status").annotate(c=Count("id"))}
 
+    # All-time (branch-scoped) totals to match dashboard
+    all_qs = scope_queryset(Order.objects.all().select_related("customer"), request.user, request)
+    raw_by_type_all = {r["type"] or "": r["c"] for r in all_qs.values("type").annotate(c=Count("id"))}
+    by_type_all = {"sales": 0, "service": 0, "inquiry": 0}
+    for t, c in raw_by_type_all.items():
+        by_type_all[norm_type(t)] = by_type_all.get(norm_type(t), 0) + int(c or 0)
+
     # Status by type matrix for stacked chart (normalize type)
     status_order = ["created", "in_progress", "completed", "cancelled"]
     type_order = ["sales", "service", "inquiry"]
@@ -5099,6 +5106,14 @@ def analytics_service(request: HttpRequest):
         "inquiry_change": pct_change(total_inquiries, prev_by_type.get("inquiry", 0)),
     }
 
+    # All-time KPIs (match dashboard totals)
+    kpis_all = {
+        "total_orders": all_qs.count(),
+        "total_tire_sales": by_type_all.get("sales", 0),
+        "total_car_service": by_type_all.get("service", 0),
+        "total_inquiries": by_type_all.get("inquiry", 0),
+    }
+
     charts = {
         "trend_multi": {"labels": trend_labels, "series": trend_series},
         "types": types_chart,
@@ -5117,6 +5132,7 @@ def analytics_service(request: HttpRequest):
         "by_type": by_type,
         "by_type_values_sum": total_orders,
         "kpis": kpis,
+        "kpis_all": kpis_all,
         "charts_json": json.dumps(charts),
     }
     return render(request, "tracker/analytics_service.html", context)
